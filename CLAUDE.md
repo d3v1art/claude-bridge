@@ -136,6 +136,7 @@ Colors are passed as normalized floats `{r, g, b}` in range 0–1, not 0–255.
 ## Typical workflow
 
 1. `get_selection` or `get_page_nodes` — understand what's on the canvas
-2. `get_tree` with `depth: 2-3` — explore structure of a specific frame
-3. Make targeted edits with specific actions
-4. Use `batch` for multiple changes at once
+2. `find_nodes` — locate specific elements by name, text, or type
+3. `get_tree` — inspect structure of a specific node if needed
+4. Make targeted edits with specific actions
+5. Use `batch` for multiple changes at once
