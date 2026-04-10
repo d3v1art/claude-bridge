@@ -110,10 +110,19 @@ curl -s -X POST http://localhost:3571/command \
 
 **Sizing, rotation & blend:**
 - `set_sizing` — layout sizing mode (`nodeId`, `axis`, `mode: FIXED|HUG|FILL`)
+- `set_min_max_size` — min/max dimensions (`nodeId`, `minWidth?`, `maxWidth?`, `minHeight?`, `maxHeight?`)
 - `set_blend_mode` — blend mode (`nodeId`, `blendMode`)
 - `rotate` — rotation in degrees (`nodeId`, `angle`)
 - `set_constraints` — layout constraints (`nodeId`, `horizontal`, `vertical`) — values: `MIN|MAX|STRETCH|CENTER|SCALE`
 - `get_constraints` — read constraints (`nodeId`)
+- `set_layout_positioning` — auto-layout flow (`nodeId`, `positioning: AUTO|ABSOLUTE`)
+- `set_corner_radii` — individual corner radii (`nodeId`, `topLeft?`, `topRight?`, `bottomRight?`, `bottomLeft?`)
+
+**Text:**
+- `set_text_auto_resize` — text overflow mode (`nodeId`, `mode: NONE|HEIGHT|WIDTH_AND_HEIGHT|TRUNCATE`)
+
+**Boolean operations:**
+- `boolean_operation` — combine shapes (`nodeIds`, `operation: UNION|INTERSECT|SUBTRACT|EXCLUDE`, `name?`)
 
 **Fills stack:**
 - `set_fills` — replace entire fills array (`nodeId`, `fills`)

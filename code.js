@@ -996,6 +996,81 @@
           ]);
           return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
         }
+        case "set_text_auto_resize": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (node.type !== "TEXT")
+            throw new Error("Node is not a text layer");
+          node.textAutoResize = params.mode;
+          return { success: true, textAutoResize: node.textAutoResize };
+        }
+        case "set_corner_radii": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("topLeftRadius" in node))
+            throw new Error("Node does not support individual corner radii");
+          if (params.topLeft !== void 0)
+            node.topLeftRadius = params.topLeft;
+          if (params.topRight !== void 0)
+            node.topRightRadius = params.topRight;
+          if (params.bottomRight !== void 0)
+            node.bottomRightRadius = params.bottomRight;
+          if (params.bottomLeft !== void 0)
+            node.bottomLeftRadius = params.bottomLeft;
+          return { success: true, topLeft: node.topLeftRadius, topRight: node.topRightRadius, bottomRight: node.bottomRightRadius, bottomLeft: node.bottomLeftRadius };
+        }
+        case "set_layout_positioning": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("layoutPositioning" in node))
+            throw new Error("Node does not support layoutPositioning");
+          node.layoutPositioning = params.positioning;
+          return { success: true, layoutPositioning: node.layoutPositioning };
+        }
+        case "set_min_max_size": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (params.minWidth !== void 0)
+            node.minWidth = params.minWidth;
+          if (params.maxWidth !== void 0)
+            node.maxWidth = params.maxWidth;
+          if (params.minHeight !== void 0)
+            node.minHeight = params.minHeight;
+          if (params.maxHeight !== void 0)
+            node.maxHeight = params.maxHeight;
+          return { success: true, minWidth: node.minWidth, maxWidth: node.maxWidth, minHeight: node.minHeight, maxHeight: node.maxHeight };
+        }
+        case "boolean_operation": {
+          const nodes = yield Promise.all(params.nodeIds.map((id) => figma.getNodeByIdAsync(id)));
+          const valid = nodes.filter(Boolean);
+          if (valid.length < 2)
+            throw new Error("Need at least 2 nodes for boolean operation");
+          const parent = valid[0].parent;
+          let result;
+          switch (params.operation) {
+            case "UNION":
+              result = figma.union(valid, parent);
+              break;
+            case "INTERSECT":
+              result = figma.intersect(valid, parent);
+              break;
+            case "SUBTRACT":
+              result = figma.subtract(valid, parent);
+              break;
+            case "EXCLUDE":
+              result = figma.exclude(valid, parent);
+              break;
+            default:
+              throw new Error(`Unknown operation: ${params.operation}`);
+          }
+          if (params.name)
+            result.name = params.name;
+          return __spreadValues({ success: true }, nodeInfo(result));
+        }
         case "set_instance_property": {
           const node = yield figma.getNodeByIdAsync(params.nodeId);
           if (!node)

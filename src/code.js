@@ -928,6 +928,66 @@ async function executeAction(action, params) {
       return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
     }
 
+    case 'set_text_auto_resize': {
+      // params: nodeId, mode — 'NONE'|'HEIGHT'|'WIDTH_AND_HEIGHT'|'TRUNCATE'
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (node.type !== 'TEXT') throw new Error('Node is not a text layer');
+      node.textAutoResize = params.mode;
+      return { success: true, textAutoResize: node.textAutoResize };
+    }
+
+    case 'set_corner_radii': {
+      // params: nodeId, topLeft?, topRight?, bottomRight?, bottomLeft?
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('topLeftRadius' in node)) throw new Error('Node does not support individual corner radii');
+      if (params.topLeft !== undefined) node.topLeftRadius = params.topLeft;
+      if (params.topRight !== undefined) node.topRightRadius = params.topRight;
+      if (params.bottomRight !== undefined) node.bottomRightRadius = params.bottomRight;
+      if (params.bottomLeft !== undefined) node.bottomLeftRadius = params.bottomLeft;
+      return { success: true, topLeft: node.topLeftRadius, topRight: node.topRightRadius, bottomRight: node.bottomRightRadius, bottomLeft: node.bottomLeftRadius };
+    }
+
+    case 'set_layout_positioning': {
+      // params: nodeId, positioning — 'AUTO'|'ABSOLUTE'
+      // 'ABSOLUTE' — node is taken out of auto-layout flow, positioned freely inside parent
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('layoutPositioning' in node)) throw new Error('Node does not support layoutPositioning');
+      node.layoutPositioning = params.positioning;
+      return { success: true, layoutPositioning: node.layoutPositioning };
+    }
+
+    case 'set_min_max_size': {
+      // params: nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (params.minWidth !== undefined) node.minWidth = params.minWidth;
+      if (params.maxWidth !== undefined) node.maxWidth = params.maxWidth;
+      if (params.minHeight !== undefined) node.minHeight = params.minHeight;
+      if (params.maxHeight !== undefined) node.maxHeight = params.maxHeight;
+      return { success: true, minWidth: node.minWidth, maxWidth: node.maxWidth, minHeight: node.minHeight, maxHeight: node.maxHeight };
+    }
+
+    case 'boolean_operation': {
+      // params: nodeIds (array, min 2), operation — 'UNION'|'INTERSECT'|'SUBTRACT'|'EXCLUDE', name?
+      const nodes = await Promise.all(params.nodeIds.map(id => figma.getNodeByIdAsync(id)));
+      const valid = nodes.filter(Boolean);
+      if (valid.length < 2) throw new Error('Need at least 2 nodes for boolean operation');
+      const parent = valid[0].parent;
+      let result;
+      switch (params.operation) {
+        case 'UNION':     result = figma.union(valid, parent); break;
+        case 'INTERSECT': result = figma.intersect(valid, parent); break;
+        case 'SUBTRACT':  result = figma.subtract(valid, parent); break;
+        case 'EXCLUDE':   result = figma.exclude(valid, parent); break;
+        default: throw new Error(`Unknown operation: ${params.operation}`);
+      }
+      if (params.name) result.name = params.name;
+      return { success: true, ...nodeInfo(result) };
+    }
+
     case 'set_instance_property': {
       // params: nodeId, properties { propName: value }
       // value for TEXT property: string
