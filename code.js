@@ -277,8 +277,11 @@
             if (parent && "appendChild" in parent)
               parent.appendChild(frame);
           }
-          if (params.fill !== void 0)
+          if (params.fill !== void 0) {
             frame.fills = [{ type: "SOLID", color: params.fill, opacity: (_s = params.fillOpacity) != null ? _s : 1 }];
+          } else {
+            frame.fills = [];
+          }
           if (params.cornerRadius !== void 0)
             frame.cornerRadius = params.cornerRadius;
           if (params.clipsContent !== void 0)
@@ -910,6 +913,27 @@
             }
           }
           return result;
+        }
+        case "add_mode": {
+          const col = figma.variables.getVariableCollectionById(params.collectionId);
+          if (!col)
+            throw new Error(`Collection not found: ${params.collectionId}`);
+          const modeId = col.addMode(params.name);
+          return { success: true, collectionId: col.id, modeId, modeName: params.name, modes: col.modes };
+        }
+        case "rename_mode": {
+          const col = figma.variables.getVariableCollectionById(params.collectionId);
+          if (!col)
+            throw new Error(`Collection not found: ${params.collectionId}`);
+          col.renameMode(params.modeId, params.name);
+          return { success: true, collectionId: col.id, modeId: params.modeId, modes: col.modes };
+        }
+        case "remove_mode": {
+          const col = figma.variables.getVariableCollectionById(params.collectionId);
+          if (!col)
+            throw new Error(`Collection not found: ${params.collectionId}`);
+          col.removeMode(params.modeId);
+          return { success: true, collectionId: col.id, modes: col.modes };
         }
         case "switch_mode": {
           const node = yield figma.getNodeByIdAsync(params.nodeId);

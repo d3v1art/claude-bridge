@@ -11,3 +11,6 @@ dist/
 .claude/settings.local.json
 .claude/memory/
 
+# Private Figma project notes (not tracked in git)
+.figma-projects/
+

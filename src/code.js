@@ -208,7 +208,11 @@ async function executeAction(action, params) {
         const parent = await figma.getNodeByIdAsync(params.parentId);
         if (parent && 'appendChild' in parent) parent.appendChild(frame);
       }
-      if (params.fill !== undefined) frame.fills = [{ type: 'SOLID', color: params.fill, opacity: params.fillOpacity ?? 1 }];
+      if (params.fill !== undefined) {
+        frame.fills = [{ type: 'SOLID', color: params.fill, opacity: params.fillOpacity ?? 1 }];
+      } else {
+        frame.fills = []; // transparent by default
+      }
       if (params.cornerRadius !== undefined) frame.cornerRadius = params.cornerRadius;
       if (params.clipsContent !== undefined) frame.clipsContent = params.clipsContent;
       return { success: true, ...nodeInfo(frame) };
@@ -830,6 +834,31 @@ async function executeAction(action, params) {
       }
 
       return result;
+    }
+
+    case 'add_mode': {
+      // params: collectionId, name
+      // Adds a new mode to an existing variable collection
+      const col = figma.variables.getVariableCollectionById(params.collectionId);
+      if (!col) throw new Error(`Collection not found: ${params.collectionId}`);
+      const modeId = col.addMode(params.name);
+      return { success: true, collectionId: col.id, modeId, modeName: params.name, modes: col.modes };
+    }
+
+    case 'rename_mode': {
+      // params: collectionId, modeId, name
+      const col = figma.variables.getVariableCollectionById(params.collectionId);
+      if (!col) throw new Error(`Collection not found: ${params.collectionId}`);
+      col.renameMode(params.modeId, params.name);
+      return { success: true, collectionId: col.id, modeId: params.modeId, modes: col.modes };
+    }
+
+    case 'remove_mode': {
+      // params: collectionId, modeId
+      const col = figma.variables.getVariableCollectionById(params.collectionId);
+      if (!col) throw new Error(`Collection not found: ${params.collectionId}`);
+      col.removeMode(params.modeId);
+      return { success: true, collectionId: col.id, modes: col.modes };
     }
 
     case 'switch_mode': {
