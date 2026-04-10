@@ -702,6 +702,232 @@ async function executeAction(action, params) {
       return { id: variable.id, name: variable.name, type: variable.resolvedType };
     }
 
+    case 'update_variable': {
+      // params: variableId, values { modeId: value }
+      // For COLOR value: { r, g, b, a } (0-1 range)
+      // For alias: { type: 'VARIABLE_ALIAS', id: variableId }
+      const v = figma.variables.getVariableById(params.variableId);
+      if (!v) throw new Error(`Variable not found: ${params.variableId}`);
+      for (const [modeId, value] of Object.entries(params.values)) {
+        v.setValueForMode(modeId, value);
+      }
+      return { id: v.id, name: v.name, type: v.resolvedType };
+    }
+
+    case 'delete_variable': {
+      // params: variableId
+      const v = figma.variables.getVariableById(params.variableId);
+      if (!v) throw new Error(`Variable not found: ${params.variableId}`);
+      v.remove();
+      return { success: true };
+    }
+
+    case 'apply_variable': {
+      // params: nodeId, property, variableId
+      // property: 'fills' | 'strokes' | 'opacity' | 'width' | 'height' |
+      //           'paddingTop' | 'paddingBottom' | 'paddingLeft' | 'paddingRight' |
+      //           'itemSpacing' | 'cornerRadius' | 'characters' | 'fontSize' |
+      //           'fontWeight' | 'lineHeight' | 'letterSpacing'
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      const v = figma.variables.getVariableById(params.variableId);
+      if (!v) throw new Error(`Variable not found: ${params.variableId}`);
+
+      const prop = params.property;
+
+      if (prop === 'fills' || prop === 'strokes') {
+        const paints = node[prop];
+        if (!paints || paints.length === 0) throw new Error(`Node has no ${prop}`);
+        const index = params.index ?? 0;
+        const bound = figma.variables.setBoundVariableForPaint(paints[index], 'color', v);
+        const updated = [...paints];
+        updated[index] = bound;
+        node[prop] = updated;
+      } else {
+        node.setBoundVariable(prop, v);
+      }
+      return { success: true, nodeId: node.id, property: prop, variableId: v.id, variableName: v.name };
+    }
+
+    case 'detach_variable': {
+      // params: nodeId, property, index (optional, for fills/strokes)
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      const prop = params.property;
+
+      if (prop === 'fills' || prop === 'strokes') {
+        const paints = node[prop];
+        if (!paints || paints.length === 0) throw new Error(`Node has no ${prop}`);
+        const index = params.index ?? 0;
+        const unbound = figma.variables.setBoundVariableForPaint(paints[index], 'color', null);
+        const updated = [...paints];
+        updated[index] = unbound;
+        node[prop] = updated;
+      } else {
+        node.setBoundVariable(prop, null);
+      }
+      return { success: true };
+    }
+
+    case 'get_variable_bindings': {
+      // params: nodeId
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      const result = { nodeId: node.id, name: node.name, bindings: {} };
+
+      // Direct bound variables on the node
+      if ('boundVariables' in node && node.boundVariables) {
+        for (const [prop, binding] of Object.entries(node.boundVariables)) {
+          if (!binding) continue;
+          const resolve = (b) => {
+            if (!b || !b.id) return null;
+            const v = figma.variables.getVariableById(b.id);
+            return v ? { id: v.id, name: v.name, type: v.resolvedType } : { id: b.id };
+          };
+          result.bindings[prop] = Array.isArray(binding) ? binding.map(resolve) : resolve(binding);
+        }
+      }
+
+      // Paint bindings (fills/strokes)
+      for (const paintProp of ['fills', 'strokes']) {
+        if (!(paintProp in node) || !node[paintProp]) continue;
+        const paints = node[paintProp];
+        const paintBindings = [];
+        for (const paint of paints) {
+          if (paint.boundVariables?.color) {
+            const v = figma.variables.getVariableById(paint.boundVariables.color.id);
+            paintBindings.push(v ? { id: v.id, name: v.name, type: v.resolvedType } : null);
+          } else {
+            paintBindings.push(null);
+          }
+        }
+        if (paintBindings.some(b => b !== null)) {
+          result.bindings[paintProp] = paintBindings;
+        }
+      }
+
+      return result;
+    }
+
+    case 'switch_mode': {
+      // params: nodeId, collectionId, modeId
+      // Applies a variable mode to a specific frame/component
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('setExplicitVariableModeForCollection' in node)) {
+        throw new Error('Node does not support explicit variable modes');
+      }
+      const col = figma.variables.getVariableCollectionById(params.collectionId);
+      if (!col) throw new Error(`Collection not found: ${params.collectionId}`);
+      node.setExplicitVariableModeForCollection(col, params.modeId);
+      return { success: true, nodeId: node.id, collectionId: params.collectionId, modeId: params.modeId };
+    }
+
+    case 'reset_mode': {
+      // params: nodeId, collectionId
+      // Removes explicit mode override, falls back to parent/default
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('resetExplicitVariableModeForCollection' in node)) {
+        throw new Error('Node does not support explicit variable modes');
+      }
+      const col = figma.variables.getVariableCollectionById(params.collectionId);
+      if (!col) throw new Error(`Collection not found: ${params.collectionId}`);
+      node.resetExplicitVariableModeForCollection(col);
+      return { success: true };
+    }
+
+    case 'audit_missing_components': {
+      // Find all detached instances (mainComponent is null)
+      const scopeNode = params.scopeId
+        ? await figma.getNodeByIdAsync(params.scopeId)
+        : figma.currentPage;
+      if (!scopeNode) throw new Error(`Scope node not found: ${params.scopeId}`);
+      const instances = scopeNode.findAllWithCriteria({ types: ['INSTANCE'] });
+      return instances
+        .filter(n => !n.mainComponent)
+        .map(n => ({ id: n.id, name: n.name, x: n.x, y: n.y, parentId: n.parent?.id, parentName: n.parent?.name }));
+    }
+
+    case 'audit_hardcoded_colors': {
+      // Find nodes with solid fills/strokes not bound to a variable
+      const scopeNode = params.scopeId
+        ? await figma.getNodeByIdAsync(params.scopeId)
+        : figma.currentPage;
+      if (!scopeNode) throw new Error(`Scope node not found`);
+      const nodes = scopeNode.findAll(n => 'fills' in n || 'strokes' in n);
+      const issues = [];
+      for (const n of nodes) {
+        const hardcodedFills = [];
+        const hardcodedStrokes = [];
+        if ('fills' in n && Array.isArray(n.fills)) {
+          for (const f of n.fills) {
+            if (f.type === 'SOLID' && f.visible !== false && !f.boundVariables?.color) {
+              hardcodedFills.push({ r: Math.round(f.color.r*255), g: Math.round(f.color.g*255), b: Math.round(f.color.b*255) });
+            }
+          }
+        }
+        if ('strokes' in n && Array.isArray(n.strokes)) {
+          for (const s of n.strokes) {
+            if (s.type === 'SOLID' && s.visible !== false && !s.boundVariables?.color) {
+              hardcodedStrokes.push({ r: Math.round(s.color.r*255), g: Math.round(s.color.g*255), b: Math.round(s.color.b*255) });
+            }
+          }
+        }
+        if (hardcodedFills.length || hardcodedStrokes.length) {
+          issues.push({ id: n.id, name: n.name, type: n.type, hardcodedFills, hardcodedStrokes });
+        }
+      }
+      return issues;
+    }
+
+    case 'audit_detached_styles': {
+      // Find text nodes not using a local text style
+      const scopeNode = params.scopeId
+        ? await figma.getNodeByIdAsync(params.scopeId)
+        : figma.currentPage;
+      if (!scopeNode) throw new Error(`Scope node not found`);
+      const texts = scopeNode.findAllWithCriteria({ types: ['TEXT'] });
+      return texts
+        .filter(n => !n.textStyleId)
+        .map(n => ({
+          id: n.id,
+          name: n.name,
+          text: n.characters?.slice(0, 60),
+          fontSize: typeof n.fontSize === 'number' ? n.fontSize : null,
+          fontFamily: typeof n.fontName === 'object' && !('mixed' in n.fontName) ? n.fontName.family : null,
+        }));
+    }
+
+    case 'audit_empty_frames': {
+      // Find frames with no visible children
+      const scopeNode = params.scopeId
+        ? await figma.getNodeByIdAsync(params.scopeId)
+        : figma.currentPage;
+      if (!scopeNode) throw new Error(`Scope node not found`);
+      const frames = scopeNode.findAllWithCriteria({ types: ['FRAME'] });
+      return frames
+        .filter(n => n.children.length === 0 || n.children.every(c => c.visible === false))
+        .map(n => ({ id: n.id, name: n.name, x: n.x, y: n.y, width: n.width, height: n.height, parentId: n.parent?.id }));
+    }
+
+    case 'audit_all': {
+      // Run all audits and return grouped results
+      const scopeId = params.scopeId ?? null;
+      const run = async (action) => {
+        try { return await executeAction(action, { scopeId }); }
+        catch(e) { return { error: e.message }; }
+      };
+      const [missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues] = await Promise.all([
+        run('audit_missing_components'),
+        run('audit_hardcoded_colors'),
+        run('audit_detached_styles'),
+        run('audit_empty_frames'),
+        run('audit_contrast'),
+      ]);
+      return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
+    }
+
     default:
       throw new Error(`Unknown action: ${action}`);
   }

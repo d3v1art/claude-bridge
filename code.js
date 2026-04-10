@@ -79,7 +79,7 @@
   }
   function executeAction(action, params) {
     return __async(this, null, function* () {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$;
       switch (action) {
         case "get_selection":
           return figma.currentPage.selection.map(nodeInfo);
@@ -792,6 +792,209 @@
             }
           }
           return { id: variable.id, name: variable.name, type: variable.resolvedType };
+        }
+        case "update_variable": {
+          const v = figma.variables.getVariableById(params.variableId);
+          if (!v)
+            throw new Error(`Variable not found: ${params.variableId}`);
+          for (const [modeId, value] of Object.entries(params.values)) {
+            v.setValueForMode(modeId, value);
+          }
+          return { id: v.id, name: v.name, type: v.resolvedType };
+        }
+        case "delete_variable": {
+          const v = figma.variables.getVariableById(params.variableId);
+          if (!v)
+            throw new Error(`Variable not found: ${params.variableId}`);
+          v.remove();
+          return { success: true };
+        }
+        case "apply_variable": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          const v = figma.variables.getVariableById(params.variableId);
+          if (!v)
+            throw new Error(`Variable not found: ${params.variableId}`);
+          const prop = params.property;
+          if (prop === "fills" || prop === "strokes") {
+            const paints = node[prop];
+            if (!paints || paints.length === 0)
+              throw new Error(`Node has no ${prop}`);
+            const index = (_W = params.index) != null ? _W : 0;
+            const bound = figma.variables.setBoundVariableForPaint(paints[index], "color", v);
+            const updated = [...paints];
+            updated[index] = bound;
+            node[prop] = updated;
+          } else {
+            node.setBoundVariable(prop, v);
+          }
+          return { success: true, nodeId: node.id, property: prop, variableId: v.id, variableName: v.name };
+        }
+        case "detach_variable": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          const prop = params.property;
+          if (prop === "fills" || prop === "strokes") {
+            const paints = node[prop];
+            if (!paints || paints.length === 0)
+              throw new Error(`Node has no ${prop}`);
+            const index = (_X = params.index) != null ? _X : 0;
+            const unbound = figma.variables.setBoundVariableForPaint(paints[index], "color", null);
+            const updated = [...paints];
+            updated[index] = unbound;
+            node[prop] = updated;
+          } else {
+            node.setBoundVariable(prop, null);
+          }
+          return { success: true };
+        }
+        case "get_variable_bindings": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          const result = { nodeId: node.id, name: node.name, bindings: {} };
+          if ("boundVariables" in node && node.boundVariables) {
+            for (const [prop, binding] of Object.entries(node.boundVariables)) {
+              if (!binding)
+                continue;
+              const resolve = (b) => {
+                if (!b || !b.id)
+                  return null;
+                const v = figma.variables.getVariableById(b.id);
+                return v ? { id: v.id, name: v.name, type: v.resolvedType } : { id: b.id };
+              };
+              result.bindings[prop] = Array.isArray(binding) ? binding.map(resolve) : resolve(binding);
+            }
+          }
+          for (const paintProp of ["fills", "strokes"]) {
+            if (!(paintProp in node) || !node[paintProp])
+              continue;
+            const paints = node[paintProp];
+            const paintBindings = [];
+            for (const paint of paints) {
+              if ((_Y = paint.boundVariables) == null ? void 0 : _Y.color) {
+                const v = figma.variables.getVariableById(paint.boundVariables.color.id);
+                paintBindings.push(v ? { id: v.id, name: v.name, type: v.resolvedType } : null);
+              } else {
+                paintBindings.push(null);
+              }
+            }
+            if (paintBindings.some((b) => b !== null)) {
+              result.bindings[paintProp] = paintBindings;
+            }
+          }
+          return result;
+        }
+        case "switch_mode": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("setExplicitVariableModeForCollection" in node)) {
+            throw new Error("Node does not support explicit variable modes");
+          }
+          const col = figma.variables.getVariableCollectionById(params.collectionId);
+          if (!col)
+            throw new Error(`Collection not found: ${params.collectionId}`);
+          node.setExplicitVariableModeForCollection(col, params.modeId);
+          return { success: true, nodeId: node.id, collectionId: params.collectionId, modeId: params.modeId };
+        }
+        case "reset_mode": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("resetExplicitVariableModeForCollection" in node)) {
+            throw new Error("Node does not support explicit variable modes");
+          }
+          const col = figma.variables.getVariableCollectionById(params.collectionId);
+          if (!col)
+            throw new Error(`Collection not found: ${params.collectionId}`);
+          node.resetExplicitVariableModeForCollection(col);
+          return { success: true };
+        }
+        case "audit_missing_components": {
+          const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : figma.currentPage;
+          if (!scopeNode)
+            throw new Error(`Scope node not found: ${params.scopeId}`);
+          const instances = scopeNode.findAllWithCriteria({ types: ["INSTANCE"] });
+          return instances.filter((n) => !n.mainComponent).map((n) => {
+            var _a2, _b2;
+            return { id: n.id, name: n.name, x: n.x, y: n.y, parentId: (_a2 = n.parent) == null ? void 0 : _a2.id, parentName: (_b2 = n.parent) == null ? void 0 : _b2.name };
+          });
+        }
+        case "audit_hardcoded_colors": {
+          const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : figma.currentPage;
+          if (!scopeNode)
+            throw new Error(`Scope node not found`);
+          const nodes = scopeNode.findAll((n) => "fills" in n || "strokes" in n);
+          const issues = [];
+          for (const n of nodes) {
+            const hardcodedFills = [];
+            const hardcodedStrokes = [];
+            if ("fills" in n && Array.isArray(n.fills)) {
+              for (const f of n.fills) {
+                if (f.type === "SOLID" && f.visible !== false && !((_Z = f.boundVariables) == null ? void 0 : _Z.color)) {
+                  hardcodedFills.push({ r: Math.round(f.color.r * 255), g: Math.round(f.color.g * 255), b: Math.round(f.color.b * 255) });
+                }
+              }
+            }
+            if ("strokes" in n && Array.isArray(n.strokes)) {
+              for (const s of n.strokes) {
+                if (s.type === "SOLID" && s.visible !== false && !((__ = s.boundVariables) == null ? void 0 : __.color)) {
+                  hardcodedStrokes.push({ r: Math.round(s.color.r * 255), g: Math.round(s.color.g * 255), b: Math.round(s.color.b * 255) });
+                }
+              }
+            }
+            if (hardcodedFills.length || hardcodedStrokes.length) {
+              issues.push({ id: n.id, name: n.name, type: n.type, hardcodedFills, hardcodedStrokes });
+            }
+          }
+          return issues;
+        }
+        case "audit_detached_styles": {
+          const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : figma.currentPage;
+          if (!scopeNode)
+            throw new Error(`Scope node not found`);
+          const texts = scopeNode.findAllWithCriteria({ types: ["TEXT"] });
+          return texts.filter((n) => !n.textStyleId).map((n) => {
+            var _a2;
+            return {
+              id: n.id,
+              name: n.name,
+              text: (_a2 = n.characters) == null ? void 0 : _a2.slice(0, 60),
+              fontSize: typeof n.fontSize === "number" ? n.fontSize : null,
+              fontFamily: typeof n.fontName === "object" && !("mixed" in n.fontName) ? n.fontName.family : null
+            };
+          });
+        }
+        case "audit_empty_frames": {
+          const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : figma.currentPage;
+          if (!scopeNode)
+            throw new Error(`Scope node not found`);
+          const frames = scopeNode.findAllWithCriteria({ types: ["FRAME"] });
+          return frames.filter((n) => n.children.length === 0 || n.children.every((c) => c.visible === false)).map((n) => {
+            var _a2;
+            return { id: n.id, name: n.name, x: n.x, y: n.y, width: n.width, height: n.height, parentId: (_a2 = n.parent) == null ? void 0 : _a2.id };
+          });
+        }
+        case "audit_all": {
+          const scopeId = (_$ = params.scopeId) != null ? _$ : null;
+          const run = (action2) => __async(this, null, function* () {
+            try {
+              return yield executeAction(action2, { scopeId });
+            } catch (e) {
+              return { error: e.message };
+            }
+          });
+          const [missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues] = yield Promise.all([
+            run("audit_missing_components"),
+            run("audit_hardcoded_colors"),
+            run("audit_detached_styles"),
+            run("audit_empty_frames"),
+            run("audit_contrast")
+          ]);
+          return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
         }
         default:
           throw new Error(`Unknown action: ${action}`);

@@ -52,6 +52,23 @@ curl -s -X POST http://localhost:3571/command \
 - `set_layout` — auto-layout (`nodeId`, `mode`, `gap`, `padding`)
 - `set_effect` — add shadow/effect (`nodeId`, `effectType`, ...)
 
+**Variables & modes:**
+- `update_variable` — изменить значение переменной (`variableId`, `values: { modeId: value }`)
+- `delete_variable` — удалить переменную (`variableId`)
+- `apply_variable` — привязать переменную к свойству ноды (`nodeId`, `property`, `variableId`)
+- `detach_variable` — отвязать переменную от свойства (`nodeId`, `property`)
+- `get_variable_bindings` — посмотреть все привязки переменных на ноде (`nodeId`)
+- `switch_mode` — переключить режим на фрейме (`nodeId`, `collectionId`, `modeId`)
+- `reset_mode` — сбросить явный режим, вернуться к родительскому (`nodeId`, `collectionId`)
+
+**Audit:**
+- `audit_missing_components` — detached instances без main component
+- `audit_hardcoded_colors` — заливки/обводки не из переменных
+- `audit_detached_styles` — текстовые слои без text style
+- `audit_empty_frames` — фреймы без содержимого
+- `audit_contrast` — нарушения контраста WCAG
+- `audit_all` — все проверки за один запрос (возвращает сгруппированный отчёт)
+
 **Creating:**
 - `create_frame` — new frame (`name`, `width`, `height`, `x`, `y`, `fill`, `cornerRadius`)
 - `create_rectangle` — new rectangle
