@@ -928,6 +928,272 @@ async function executeAction(action, params) {
       return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
     }
 
+    // ── Search ────────────────────────────────────────────────────────────────
+
+    case 'find_nodes': {
+      // params: name? (substring, case-insensitive), text? (exact text content),
+      //         type? (node type), scopeId?, limit?
+      const scopeNode = params.scopeId
+        ? await figma.getNodeByIdAsync(params.scopeId)
+        : figma.currentPage;
+      if (!scopeNode) throw new Error(`Scope not found`);
+      const limit = params.limit ?? 50;
+      const results = [];
+      const nameLower = params.name?.toLowerCase();
+      const walk = (n) => {
+        if (results.length >= limit) return;
+        const matchName = !nameLower || n.name.toLowerCase().includes(nameLower);
+        const matchType = !params.type || n.type === params.type;
+        const matchText = !params.text || (n.type === 'TEXT' && n.characters === params.text);
+        const matchTextContains = !params.textContains || (n.type === 'TEXT' && n.characters?.includes(params.textContains));
+        if (matchName && matchType && (params.text ? matchText : true) && matchTextContains) {
+          results.push(nodeInfo(n));
+        }
+        if ('children' in n) n.children.forEach(walk);
+      };
+      if ('children' in scopeNode) scopeNode.children.forEach(walk);
+      return results;
+    }
+
+    // ── Pages ─────────────────────────────────────────────────────────────────
+
+    case 'get_pages': {
+      return figma.root.children.map(p => ({
+        id: p.id,
+        name: p.name,
+        isCurrent: p.id === figma.currentPage.id,
+      }));
+    }
+
+    case 'switch_page': {
+      // params: pageId
+      const page = figma.root.children.find(p => p.id === params.pageId);
+      if (!page) throw new Error(`Page not found: ${params.pageId}`);
+      figma.currentPage = page;
+      return { success: true, pageId: page.id, pageName: page.name };
+    }
+
+    case 'create_page': {
+      // params: name, index? (position, default: end)
+      const page = figma.createPage();
+      page.name = params.name ?? 'Page';
+      if (params.index !== undefined) figma.root.insertChild(params.index, page);
+      return { id: page.id, name: page.name };
+    }
+
+    case 'delete_page': {
+      // params: pageId
+      if (figma.root.children.length <= 1) throw new Error('Cannot delete the only page');
+      const page = figma.root.children.find(p => p.id === params.pageId);
+      if (!page) throw new Error(`Page not found: ${params.pageId}`);
+      page.remove();
+      return { success: true };
+    }
+
+    case 'rename_page': {
+      // params: pageId, name
+      const page = figma.root.children.find(p => p.id === params.pageId);
+      if (!page) throw new Error(`Page not found: ${params.pageId}`);
+      page.name = params.name;
+      return { success: true, pageId: page.id, name: page.name };
+    }
+
+    // ── Viewport & selection ──────────────────────────────────────────────────
+
+    case 'scroll_to_node': {
+      // params: nodeId
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      figma.viewport.scrollAndZoomIntoView([node]);
+      return { success: true };
+    }
+
+    case 'set_selection': {
+      // params: nodeIds (array)
+      const nodes = await Promise.all(params.nodeIds.map(id => figma.getNodeByIdAsync(id)));
+      const valid = nodes.filter(Boolean);
+      figma.currentPage.selection = valid;
+      return { success: true, selected: valid.map(n => n.id) };
+    }
+
+    case 'notify': {
+      // params: message, error? (boolean, shows red toast)
+      figma.notify(params.message, { error: params.error ?? false });
+      return { success: true };
+    }
+
+    // ── Layer order ───────────────────────────────────────────────────────────
+
+    case 'reorder': {
+      // params: nodeId, index (position within parent's children)
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      const parent = node.parent;
+      if (!parent || !('insertChild' in parent)) throw new Error('Node has no reorderable parent');
+      parent.insertChild(params.index, node);
+      return { success: true, index: params.index };
+    }
+
+    case 'bring_to_front': {
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      const parent = node.parent;
+      if (!parent || !('insertChild' in parent)) throw new Error('Node has no reorderable parent');
+      parent.insertChild(parent.children.length - 1, node);
+      return { success: true };
+    }
+
+    case 'send_to_back': {
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      const parent = node.parent;
+      if (!parent || !('insertChild' in parent)) throw new Error('Node has no reorderable parent');
+      parent.insertChild(0, node);
+      return { success: true };
+    }
+
+    // ── Grouping ──────────────────────────────────────────────────────────────
+
+    case 'group': {
+      // params: nodeIds (array), parentId?, name?
+      const nodes = await Promise.all(params.nodeIds.map(id => figma.getNodeByIdAsync(id)));
+      const valid = nodes.filter(Boolean);
+      if (valid.length === 0) throw new Error('No valid nodes to group');
+      const parent = params.parentId
+        ? await figma.getNodeByIdAsync(params.parentId)
+        : valid[0].parent;
+      const group = figma.group(valid, parent);
+      if (params.name) group.name = params.name;
+      return { success: true, ...nodeInfo(group) };
+    }
+
+    case 'ungroup': {
+      // params: nodeId
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (node.type !== 'GROUP') throw new Error('Node is not a group');
+      const children = [...node.children].map(nodeInfo);
+      figma.ungroup(node);
+      return { success: true, children };
+    }
+
+    // ── Color & effect styles ─────────────────────────────────────────────────
+
+    case 'get_local_styles': {
+      // Returns all local styles grouped by type
+      const result = { paint: [], text: [], effect: [], grid: [] };
+      for (const s of figma.getLocalPaintStyles()) {
+        result.paint.push({
+          id: s.id, name: s.name,
+          paints: s.paints.map(p => p.type === 'SOLID'
+            ? { type: 'SOLID', r: Math.round(p.color.r*255), g: Math.round(p.color.g*255), b: Math.round(p.color.b*255), opacity: p.opacity ?? 1 }
+            : { type: p.type }),
+        });
+      }
+      for (const s of figma.getLocalTextStyles()) {
+        result.text.push({
+          id: s.id, name: s.name,
+          fontFamily: s.fontName.family, fontStyle: s.fontName.style,
+          fontSize: s.fontSize, lineHeight: s.lineHeight, letterSpacing: s.letterSpacing,
+        });
+      }
+      for (const s of figma.getLocalEffectStyles()) {
+        result.effect.push({ id: s.id, name: s.name, effects: s.effects });
+      }
+      for (const s of figma.getLocalGridStyles()) {
+        result.grid.push({ id: s.id, name: s.name });
+      }
+      return result;
+    }
+
+    case 'apply_paint_style': {
+      // params: nodeId, styleId, target ('fills'|'strokes', default 'fills')
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      const target = params.target ?? 'fills';
+      if (target === 'fills') {
+        if (!('fillStyleId' in node)) throw new Error('Node does not support fill styles');
+        node.fillStyleId = params.styleId;
+      } else {
+        if (!('strokeStyleId' in node)) throw new Error('Node does not support stroke styles');
+        node.strokeStyleId = params.styleId;
+      }
+      return { success: true };
+    }
+
+    case 'apply_effect_style': {
+      // params: nodeId, styleId
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('effectStyleId' in node)) throw new Error('Node does not support effect styles');
+      node.effectStyleId = params.styleId;
+      return { success: true };
+    }
+
+    case 'create_paint_style': {
+      // params: name, color {r,g,b} (0-1), opacity?
+      const style = figma.createPaintStyle();
+      style.name = params.name;
+      style.paints = [{ type: 'SOLID', color: params.color, opacity: params.opacity ?? 1 }];
+      return { id: style.id, name: style.name };
+    }
+
+    case 'create_effect_style': {
+      // params: name, effects (array of effect objects)
+      const style = figma.createEffectStyle();
+      style.name = params.name;
+      if (params.effects) style.effects = params.effects;
+      return { id: style.id, name: style.name };
+    }
+
+    // ── Sizing modes ──────────────────────────────────────────────────────────
+
+    case 'set_sizing': {
+      // params: nodeId, axis ('horizontal'|'vertical'|'both'),
+      //         mode ('FIXED'|'HUG'|'FILL')
+      // Requires the node to be inside an auto-layout frame for HUG/FILL
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+
+      const mode = params.mode; // 'FIXED' | 'HUG' | 'FILL'
+      const axis = params.axis ?? 'both';
+
+      // primaryAxisSizingMode / counterAxisSizingMode apply to FRAME (auto-layout container itself)
+      // layoutSizingHorizontal / layoutSizingVertical apply to children inside auto-layout
+      const isFrame = node.type === 'FRAME';
+
+      if (isFrame && 'primaryAxisSizingMode' in node) {
+        // Setting sizing mode of the frame itself
+        if (axis === 'horizontal' || axis === 'both') {
+          node.layoutSizingHorizontal = mode;
+        }
+        if (axis === 'vertical' || axis === 'both') {
+          node.layoutSizingVertical = mode;
+        }
+      } else {
+        // Setting sizing mode of a child inside auto-layout
+        if ('layoutSizingHorizontal' in node) {
+          if (axis === 'horizontal' || axis === 'both') node.layoutSizingHorizontal = mode;
+          if (axis === 'vertical' || axis === 'both') node.layoutSizingVertical = mode;
+        } else {
+          throw new Error('Node does not support layout sizing');
+        }
+      }
+      return { success: true, nodeId: node.id, axis, mode };
+    }
+
+    case 'set_blend_mode': {
+      // params: nodeId, blendMode
+      // e.g. 'NORMAL'|'MULTIPLY'|'SCREEN'|'OVERLAY'|'DARKEN'|'LIGHTEN'|
+      //      'COLOR_DODGE'|'COLOR_BURN'|'HARD_LIGHT'|'SOFT_LIGHT'|'DIFFERENCE'|
+      //      'EXCLUSION'|'HUE'|'SATURATION'|'COLOR'|'LUMINOSITY'
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('blendMode' in node)) throw new Error('Node does not support blend modes');
+      node.blendMode = params.blendMode;
+      return { success: true };
+    }
+
     default:
       throw new Error(`Unknown action: ${action}`);
   }

@@ -76,6 +76,41 @@ curl -s -X POST http://localhost:3571/command \
 - `audit_contrast` — нарушения контраста WCAG
 - `audit_all` — все проверки за один запрос (возвращает сгруппированный отчёт)
 
+**Search:**
+- `find_nodes` — find by name/text/type (`name`, `text`, `textContains`, `type`, `scopeId`, `limit`)
+
+**Pages:**
+- `get_pages` — list all pages
+- `switch_page` — switch to page (`pageId`)
+- `create_page` — create new page (`name`, `index?`)
+- `delete_page` — delete page (`pageId`)
+- `rename_page` — rename page (`pageId`, `name`)
+
+**Viewport & selection:**
+- `scroll_to_node` — zoom to node (`nodeId`)
+- `set_selection` — select nodes (`nodeIds`)
+- `notify` — show toast in Figma (`message`, `error?`)
+
+**Layer order:**
+- `bring_to_front` — bring to front (`nodeId`)
+- `send_to_back` — send to back (`nodeId`)
+- `reorder` — set exact index in parent (`nodeId`, `index`)
+
+**Grouping:**
+- `group` — group nodes (`nodeIds`, `name?`, `parentId?`)
+- `ungroup` — ungroup (`nodeId`)
+
+**Styles:**
+- `get_local_styles` — all local paint/text/effect/grid styles
+- `apply_paint_style` — apply color style (`nodeId`, `styleId`, `target?`)
+- `apply_effect_style` — apply effect style (`nodeId`, `styleId`)
+- `create_paint_style` — create color style (`name`, `color`, `opacity?`)
+- `create_effect_style` — create effect style (`name`, `effects`)
+
+**Sizing & blend:**
+- `set_sizing` — layout sizing mode (`nodeId`, `axis`, `mode: FIXED|HUG|FILL`)
+- `set_blend_mode` — blend mode (`nodeId`, `blendMode`)
+
 **Creating:**
 - `create_frame` — new frame (`name`, `width`, `height`, `x`, `y`, `fill`, `cornerRadius`)
 - `create_rectangle` — new rectangle
