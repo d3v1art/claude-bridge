@@ -1,5 +1,24 @@
 figma.showUI(__html__, { width: 300, height: 160 });
 
+function base64ToBytes(b64) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Uint8Array(256);
+  for (let i = 0; i < chars.length; i++) lookup[chars.charCodeAt(i)] = i;
+  const clean = b64.replace(/[^A-Za-z0-9+/]/g, '');
+  const len = clean.length;
+  const pad = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
+  const out = new Uint8Array((len * 3) / 4 - pad);
+  let pos = 0;
+  for (let i = 0; i < len; i += 4) {
+    const a = lookup[clean.charCodeAt(i)], b = lookup[clean.charCodeAt(i+1)];
+    const c = lookup[clean.charCodeAt(i+2)], d = lookup[clean.charCodeAt(i+3)];
+    out[pos++] = (a << 2) | (b >> 4);
+    if (pos < out.length) out[pos++] = ((b & 0xf) << 4) | (c >> 2);
+    if (pos < out.length) out[pos++] = ((c & 0x3) << 6) | d;
+  }
+  return out;
+}
+
 function nodeInfo(n) {
   return {
     id: n.id,
@@ -280,11 +299,15 @@ async function executeAction(action, params) {
       const node = await figma.getNodeByIdAsync(params.nodeId);
       if (!node) throw new Error(`Node not found: ${params.nodeId}`);
       if (!('effects' in node)) throw new Error('Node does not support effects');
-      const effect = { type: params.effectType ?? 'DROP_SHADOW', visible: true,
-        color: { ...( params.color ?? { r: 0, g: 0, b: 0 }), a: params.alpha ?? 0.15 },
-        offset: { x: params.offsetX ?? 0, y: params.offsetY ?? 4 },
-        radius: params.radius ?? 8, spread: params.spread ?? 0,
-      };
+      const effectType = params.effectType ?? 'DROP_SHADOW';
+      const isBlur = effectType === 'LAYER_BLUR' || effectType === 'BACKGROUND_BLUR';
+      const effect = isBlur
+        ? { type: effectType, visible: true, radius: params.blur ?? params.radius ?? 8 }
+        : { type: effectType, visible: true, blendMode: params.blendMode ?? 'NORMAL',
+            color: { ...(params.color ?? { r: 0, g: 0, b: 0 }), a: params.opacity ?? params.alpha ?? 0.15 },
+            offset: { x: params.offsetX ?? 0, y: params.offsetY ?? 4 },
+            radius: params.blur ?? params.radius ?? 8, spread: params.spread ?? 0,
+          };
       node.effects = [...node.effects, effect];
       return { success: true };
     }
@@ -828,12 +851,12 @@ async function executeAction(action, params) {
       // Removes explicit mode override, falls back to parent/default
       const node = await figma.getNodeByIdAsync(params.nodeId);
       if (!node) throw new Error(`Node not found: ${params.nodeId}`);
-      if (!('resetExplicitVariableModeForCollection' in node)) {
+      if (!('clearExplicitVariableModeForCollection' in node)) {
         throw new Error('Node does not support explicit variable modes');
       }
       const col = figma.variables.getVariableCollectionById(params.collectionId);
       if (!col) throw new Error(`Collection not found: ${params.collectionId}`);
-      node.resetExplicitVariableModeForCollection(col);
+      node.clearExplicitVariableModeForCollection(col);
       return { success: true };
     }
 
@@ -1049,7 +1072,9 @@ async function executeAction(action, params) {
       const node = await figma.getNodeByIdAsync(params.nodeId);
       if (!node) throw new Error(`Node not found: ${params.nodeId}`);
       if (node.type !== 'INSTANCE') throw new Error('Node is not a component instance');
-      const defs = node.mainComponent?.componentPropertyDefinitions ?? {};
+      const mainComp = node.mainComponent;
+      const defsSource = mainComp?.parent?.type === 'COMPONENT_SET' ? mainComp.parent : mainComp;
+      const defs = defsSource?.componentPropertyDefinitions ?? {};
       const vals = node.componentProperties ?? {};
       const result = {};
       for (const [key, def] of Object.entries(defs)) {
@@ -1135,10 +1160,7 @@ async function executeAction(action, params) {
 
       let imageHash;
       if (params.base64) {
-        const mimeType = params.mimeType ?? 'image/png';
-        const byteString = atob(params.base64);
-        const bytes = new Uint8Array(byteString.length);
-        for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
+        const bytes = base64ToBytes(params.base64);
         const image = figma.createImage(bytes);
         imageHash = image.hash;
       } else if (params.url) {
@@ -1221,7 +1243,12 @@ async function executeAction(action, params) {
       const node = await figma.getNodeByIdAsync(params.nodeId);
       if (!node) throw new Error(`Node not found: ${params.nodeId}`);
       const bytes = await node.exportAsync({ format: 'SVG' });
-      const svg = new TextDecoder().decode(bytes);
+      const chunks = [];
+      const CHUNK = 8192;
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        chunks.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+      }
+      const svg = chunks.join('');
       return { svg };
     }
 

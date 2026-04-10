@@ -53,6 +53,27 @@
 
   // src/code.js
   figma.showUI(__html__, { width: 300, height: 160 });
+  function base64ToBytes(b64) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const lookup = new Uint8Array(256);
+    for (let i = 0; i < chars.length; i++)
+      lookup[chars.charCodeAt(i)] = i;
+    const clean = b64.replace(/[^A-Za-z0-9+/]/g, "");
+    const len = clean.length;
+    const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+    const out = new Uint8Array(len * 3 / 4 - pad);
+    let pos = 0;
+    for (let i = 0; i < len; i += 4) {
+      const a = lookup[clean.charCodeAt(i)], b = lookup[clean.charCodeAt(i + 1)];
+      const c = lookup[clean.charCodeAt(i + 2)], d = lookup[clean.charCodeAt(i + 3)];
+      out[pos++] = a << 2 | b >> 4;
+      if (pos < out.length)
+        out[pos++] = (b & 15) << 4 | c >> 2;
+      if (pos < out.length)
+        out[pos++] = (c & 3) << 6 | d;
+    }
+    return out;
+  }
   function nodeInfo(n) {
     return {
       id: n.id,
@@ -79,7 +100,7 @@
   }
   function executeAction(action, params) {
     return __async(this, null, function* () {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa, _ba, _ca, _da, _ea, _fa, _ga, _ha, _ia, _ja, _ka, _la, _ma, _na, _oa, _pa, _qa, _ra, _sa, _ta, _ua, _va, _wa, _xa, _ya, _za, _Aa, _Ba;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa, _ba, _ca, _da, _ea, _fa, _ga, _ha, _ia, _ja, _ka, _la, _ma, _na, _oa, _pa, _qa, _ra, _sa, _ta, _ua, _va, _wa, _xa, _ya, _za, _Aa, _Ba, _Ca, _Da, _Ea, _Fa;
       switch (action) {
         case "get_selection":
           return figma.currentPage.selection.map(nodeInfo);
@@ -364,13 +385,16 @@
             throw new Error(`Node not found: ${params.nodeId}`);
           if (!("effects" in node))
             throw new Error("Node does not support effects");
-          const effect = {
-            type: (_F = params.effectType) != null ? _F : "DROP_SHADOW",
+          const effectType = (_F = params.effectType) != null ? _F : "DROP_SHADOW";
+          const isBlur = effectType === "LAYER_BLUR" || effectType === "BACKGROUND_BLUR";
+          const effect = isBlur ? { type: effectType, visible: true, radius: (_H = (_G = params.blur) != null ? _G : params.radius) != null ? _H : 8 } : {
+            type: effectType,
             visible: true,
-            color: __spreadProps(__spreadValues({}, (_G = params.color) != null ? _G : { r: 0, g: 0, b: 0 }), { a: (_H = params.alpha) != null ? _H : 0.15 }),
-            offset: { x: (_I = params.offsetX) != null ? _I : 0, y: (_J = params.offsetY) != null ? _J : 4 },
-            radius: (_K = params.radius) != null ? _K : 8,
-            spread: (_L = params.spread) != null ? _L : 0
+            blendMode: (_I = params.blendMode) != null ? _I : "NORMAL",
+            color: __spreadProps(__spreadValues({}, (_J = params.color) != null ? _J : { r: 0, g: 0, b: 0 }), { a: (_L = (_K = params.opacity) != null ? _K : params.alpha) != null ? _L : 0.15 }),
+            offset: { x: (_M = params.offsetX) != null ? _M : 0, y: (_N = params.offsetY) != null ? _N : 4 },
+            radius: (_P = (_O = params.blur) != null ? _O : params.radius) != null ? _P : 8,
+            spread: (_Q = params.spread) != null ? _Q : 0
           };
           node.effects = [...node.effects, effect];
           return { success: true };
@@ -381,8 +405,8 @@
             throw new Error(`Node not found: ${params.nodeId}`);
           if (node.type !== "TEXT")
             throw new Error("Node is not a text layer");
-          const family = (_M = params.family) != null ? _M : "Inter";
-          const style = (_N = params.style) != null ? _N : "Regular";
+          const family = (_R = params.family) != null ? _R : "Inter";
+          const style = (_S = params.style) != null ? _S : "Regular";
           yield figma.loadFontAsync({ family, style });
           node.fontName = { family, style };
           if (params.size !== void 0)
@@ -478,7 +502,7 @@
           }));
         }
         case "get_all_texts": {
-          const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : (_O = figma.currentPage.selection[0]) != null ? _O : figma.currentPage;
+          const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : (_T = figma.currentPage.selection[0]) != null ? _T : figma.currentPage;
           if (!scopeNode)
             throw new Error("No scope node");
           const texts = scopeNode.findAllWithCriteria({ types: ["TEXT"] });
@@ -566,7 +590,7 @@
                   required,
                   textColor: { r: Math.round(tf.r * 255), g: Math.round(tf.g * 255), b: Math.round(tf.b * 255) },
                   bgColor: { r: Math.round(bg.r * 255), g: Math.round(bg.g * 255), b: Math.round(bg.b * 255) },
-                  bgIsGradient: (_P = bg.isGradient) != null ? _P : false
+                  bgIsGradient: (_U = bg.isGradient) != null ? _U : false
                 });
               }
             }
@@ -577,12 +601,12 @@
           const node = yield figma.getNodeByIdAsync(params.nodeId);
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
-          const scale = (_Q = params.scale) != null ? _Q : 1;
+          const scale = (_V = params.scale) != null ? _V : 1;
           const bytes = yield node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: scale } });
           const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
           let base64 = "";
           for (let i = 0; i < bytes.length; i += 3) {
-            const b0 = bytes[i], b1 = (_R = bytes[i + 1]) != null ? _R : 0, b2 = (_S = bytes[i + 2]) != null ? _S : 0;
+            const b0 = bytes[i], b1 = (_W = bytes[i + 1]) != null ? _W : 0, b2 = (_X = bytes[i + 2]) != null ? _X : 0;
             base64 += chars[b0 >> 2] + chars[(b0 & 3) << 4 | b1 >> 4] + (i + 1 < bytes.length ? chars[(b1 & 15) << 2 | b2 >> 6] : "=") + (i + 2 < bytes.length ? chars[b2 & 63] : "=");
           }
           return { base64, mimeType: "image/png", width: Math.round(node.width * scale), height: Math.round(node.height * scale) };
@@ -618,7 +642,7 @@
           return chain;
         }
         case "get_annotations": {
-          const node = (_U = yield figma.getNodeByIdAsync((_T = params.nodeId) != null ? _T : null)) != null ? _U : figma.currentPage;
+          const node = (_Z = yield figma.getNodeByIdAsync((_Y = params.nodeId) != null ? _Y : null)) != null ? _Z : figma.currentPage;
           const result = { pluginData: {}, sharedData: {} };
           try {
             const keys = node.getPluginDataKeys();
@@ -731,7 +755,7 @@
             throw new Error(`Node not found: ${params.componentId}`);
           if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET")
             throw new Error("Node is not a component");
-          const key = node.addComponentProperty(params.name, params.type, (_V = params.defaultValue) != null ? _V : "");
+          const key = node.addComponentProperty(params.name, params.type, (__ = params.defaultValue) != null ? __ : "");
           return { key, name: params.name, type: params.type };
         }
         case "set_property_reference": {
@@ -821,7 +845,7 @@
             const paints = node[prop];
             if (!paints || paints.length === 0)
               throw new Error(`Node has no ${prop}`);
-            const index = (_W = params.index) != null ? _W : 0;
+            const index = (_$ = params.index) != null ? _$ : 0;
             const bound = figma.variables.setBoundVariableForPaint(paints[index], "color", v);
             const updated = [...paints];
             updated[index] = bound;
@@ -840,7 +864,7 @@
             const paints = node[prop];
             if (!paints || paints.length === 0)
               throw new Error(`Node has no ${prop}`);
-            const index = (_X = params.index) != null ? _X : 0;
+            const index = (_aa = params.index) != null ? _aa : 0;
             const unbound = figma.variables.setBoundVariableForPaint(paints[index], "color", null);
             const updated = [...paints];
             updated[index] = unbound;
@@ -874,7 +898,7 @@
             const paints = node[paintProp];
             const paintBindings = [];
             for (const paint of paints) {
-              if ((_Y = paint.boundVariables) == null ? void 0 : _Y.color) {
+              if ((_ba = paint.boundVariables) == null ? void 0 : _ba.color) {
                 const v = figma.variables.getVariableById(paint.boundVariables.color.id);
                 paintBindings.push(v ? { id: v.id, name: v.name, type: v.resolvedType } : null);
               } else {
@@ -904,13 +928,13 @@
           const node = yield figma.getNodeByIdAsync(params.nodeId);
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
-          if (!("resetExplicitVariableModeForCollection" in node)) {
+          if (!("clearExplicitVariableModeForCollection" in node)) {
             throw new Error("Node does not support explicit variable modes");
           }
           const col = figma.variables.getVariableCollectionById(params.collectionId);
           if (!col)
             throw new Error(`Collection not found: ${params.collectionId}`);
-          node.resetExplicitVariableModeForCollection(col);
+          node.clearExplicitVariableModeForCollection(col);
           return { success: true };
         }
         case "audit_missing_components": {
@@ -934,14 +958,14 @@
             const hardcodedStrokes = [];
             if ("fills" in n && Array.isArray(n.fills)) {
               for (const f of n.fills) {
-                if (f.type === "SOLID" && f.visible !== false && !((_Z = f.boundVariables) == null ? void 0 : _Z.color)) {
+                if (f.type === "SOLID" && f.visible !== false && !((_ca = f.boundVariables) == null ? void 0 : _ca.color)) {
                   hardcodedFills.push({ r: Math.round(f.color.r * 255), g: Math.round(f.color.g * 255), b: Math.round(f.color.b * 255) });
                 }
               }
             }
             if ("strokes" in n && Array.isArray(n.strokes)) {
               for (const s of n.strokes) {
-                if (s.type === "SOLID" && s.visible !== false && !((__ = s.boundVariables) == null ? void 0 : __.color)) {
+                if (s.type === "SOLID" && s.visible !== false && !((_da = s.boundVariables) == null ? void 0 : _da.color)) {
                   hardcodedStrokes.push({ r: Math.round(s.color.r * 255), g: Math.round(s.color.g * 255), b: Math.round(s.color.b * 255) });
                 }
               }
@@ -979,7 +1003,7 @@
           });
         }
         case "audit_all": {
-          const scopeId = (_$ = params.scopeId) != null ? _$ : null;
+          const scopeId = (_ea = params.scopeId) != null ? _ea : null;
           const run = (action2) => __async(this, null, function* () {
             try {
               return yield executeAction(action2, { scopeId });
@@ -1021,7 +1045,7 @@
           if (!("strokes" in node))
             throw new Error("Node does not support strokes");
           const strokes = [...node.strokes];
-          const idx = (_aa = params.index) != null ? _aa : strokes.length - 1;
+          const idx = (_fa = params.index) != null ? _fa : strokes.length - 1;
           strokes.splice(idx, 1);
           node.strokes = strokes;
           return { success: true, strokeCount: node.strokes.length };
@@ -1127,14 +1151,16 @@
             throw new Error(`Node not found: ${params.nodeId}`);
           if (node.type !== "INSTANCE")
             throw new Error("Node is not a component instance");
-          const defs = (_ca = (_ba = node.mainComponent) == null ? void 0 : _ba.componentPropertyDefinitions) != null ? _ca : {};
-          const vals = (_da = node.componentProperties) != null ? _da : {};
+          const mainComp = node.mainComponent;
+          const defsSource = ((_ga = mainComp == null ? void 0 : mainComp.parent) == null ? void 0 : _ga.type) === "COMPONENT_SET" ? mainComp.parent : mainComp;
+          const defs = (_ha = defsSource == null ? void 0 : defsSource.componentPropertyDefinitions) != null ? _ha : {};
+          const vals = (_ia = node.componentProperties) != null ? _ia : {};
           const result = {};
           for (const [key, def] of Object.entries(defs)) {
             result[key] = __spreadValues(__spreadValues({
               type: def.type,
               defaultValue: def.defaultValue,
-              currentValue: (_fa = (_ea = vals[key]) == null ? void 0 : _ea.value) != null ? _fa : def.defaultValue
+              currentValue: (_ka = (_ja = vals[key]) == null ? void 0 : _ja.value) != null ? _ka : def.defaultValue
             }, def.variantOptions ? { options: def.variantOptions } : {}), def.preferredValues ? { preferredValues: def.preferredValues } : {});
           }
           return result;
@@ -1153,8 +1179,8 @@
         }
         case "create_component": {
           const comp = figma.createComponent();
-          comp.name = (_ga = params.name) != null ? _ga : "Component";
-          comp.resize((_ha = params.width) != null ? _ha : 100, (_ia = params.height) != null ? _ia : 100);
+          comp.name = (_la = params.name) != null ? _la : "Component";
+          comp.resize((_ma = params.width) != null ? _ma : 100, (_na = params.height) != null ? _na : 100);
           if (params.x !== void 0)
             comp.x = params.x;
           if (params.y !== void 0)
@@ -1168,8 +1194,8 @@
         }
         case "create_ellipse": {
           const ellipse = figma.createEllipse();
-          ellipse.name = (_ja = params.name) != null ? _ja : "Ellipse";
-          ellipse.resize((_ka = params.width) != null ? _ka : 100, (_la = params.height) != null ? _la : 100);
+          ellipse.name = (_oa = params.name) != null ? _oa : "Ellipse";
+          ellipse.resize((_pa = params.width) != null ? _pa : 100, (_qa = params.height) != null ? _qa : 100);
           if (params.x !== void 0)
             ellipse.x = params.x;
           if (params.y !== void 0)
@@ -1180,16 +1206,16 @@
               parent.appendChild(ellipse);
           }
           if (params.fill !== void 0)
-            ellipse.fills = [{ type: "SOLID", color: params.fill, opacity: (_ma = params.fillOpacity) != null ? _ma : 1 }];
+            ellipse.fills = [{ type: "SOLID", color: params.fill, opacity: (_ra = params.fillOpacity) != null ? _ra : 1 }];
           if (params.stroke !== void 0) {
             ellipse.strokes = [{ type: "SOLID", color: params.stroke }];
-            ellipse.strokeWeight = (_na = params.strokeWeight) != null ? _na : 1;
+            ellipse.strokeWeight = (_sa = params.strokeWeight) != null ? _sa : 1;
           }
           return __spreadValues({ success: true }, nodeInfo(ellipse));
         }
         case "create_line": {
           const line = figma.createLine();
-          line.name = (_oa = params.name) != null ? _oa : "Line";
+          line.name = (_ta = params.name) != null ? _ta : "Line";
           if (params.x !== void 0)
             line.x = params.x;
           if (params.y !== void 0)
@@ -1205,7 +1231,7 @@
           }
           if (params.stroke !== void 0) {
             line.strokes = [{ type: "SOLID", color: params.stroke }];
-            line.strokeWeight = (_pa = params.strokeWeight) != null ? _pa : 1;
+            line.strokeWeight = (_ua = params.strokeWeight) != null ? _ua : 1;
           }
           return __spreadValues({ success: true }, nodeInfo(line));
         }
@@ -1217,11 +1243,7 @@
             throw new Error("Node does not support fills");
           let imageHash;
           if (params.base64) {
-            const mimeType = (_qa = params.mimeType) != null ? _qa : "image/png";
-            const byteString = atob(params.base64);
-            const bytes = new Uint8Array(byteString.length);
-            for (let i = 0; i < byteString.length; i++)
-              bytes[i] = byteString.charCodeAt(i);
+            const bytes = base64ToBytes(params.base64);
             const image = figma.createImage(bytes);
             imageHash = image.hash;
           } else if (params.url) {
@@ -1235,7 +1257,7 @@
           node.fills = [{
             type: "IMAGE",
             imageHash,
-            scaleMode: (_ra = params.scaleMode) != null ? _ra : "FILL"
+            scaleMode: (_va = params.scaleMode) != null ? _va : "FILL"
           }];
           return { success: true };
         }
@@ -1264,8 +1286,8 @@
           if (!("constraints" in node))
             throw new Error("Node does not support constraints");
           node.constraints = {
-            horizontal: (_sa = params.horizontal) != null ? _sa : node.constraints.horizontal,
-            vertical: (_ta = params.vertical) != null ? _ta : node.constraints.vertical
+            horizontal: (_wa = params.horizontal) != null ? _wa : node.constraints.horizontal,
+            vertical: (_xa = params.vertical) != null ? _xa : node.constraints.vertical
           };
           return { success: true, constraints: node.constraints };
         }
@@ -1300,7 +1322,12 @@
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
           const bytes = yield node.exportAsync({ format: "SVG" });
-          const svg = new TextDecoder().decode(bytes);
+          const chunks = [];
+          const CHUNK = 8192;
+          for (let i = 0; i < bytes.length; i += CHUNK) {
+            chunks.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+          }
+          const svg = chunks.join("");
           return { svg };
         }
         case "set_fills": {
@@ -1328,7 +1355,7 @@
           if (!("fills" in node))
             throw new Error("Node does not support fills");
           const fills = [...node.fills];
-          const idx = (_ua = params.index) != null ? _ua : fills.length - 1;
+          const idx = (_ya = params.index) != null ? _ya : fills.length - 1;
           fills.splice(idx, 1);
           node.fills = fills;
           return { success: true, fillCount: node.fills.length };
@@ -1337,9 +1364,9 @@
           const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : figma.currentPage;
           if (!scopeNode)
             throw new Error(`Scope not found`);
-          const limit = (_va = params.limit) != null ? _va : 50;
+          const limit = (_za = params.limit) != null ? _za : 50;
           const results = [];
-          const nameLower = (_wa = params.name) == null ? void 0 : _wa.toLowerCase();
+          const nameLower = (_Aa = params.name) == null ? void 0 : _Aa.toLowerCase();
           const walk = (n) => {
             var _a2;
             if (results.length >= limit)
@@ -1374,7 +1401,7 @@
         }
         case "create_page": {
           const page = figma.createPage();
-          page.name = (_xa = params.name) != null ? _xa : "Page";
+          page.name = (_Ba = params.name) != null ? _Ba : "Page";
           if (params.index !== void 0)
             figma.root.insertChild(params.index, page);
           return { id: page.id, name: page.name };
@@ -1409,7 +1436,7 @@
           return { success: true, selected: valid.map((n) => n.id) };
         }
         case "notify": {
-          figma.notify(params.message, { error: (_ya = params.error) != null ? _ya : false });
+          figma.notify(params.message, { error: (_Ca = params.error) != null ? _Ca : false });
           return { success: true };
         }
         case "reorder": {
@@ -1498,7 +1525,7 @@
           const node = yield figma.getNodeByIdAsync(params.nodeId);
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
-          const target = (_za = params.target) != null ? _za : "fills";
+          const target = (_Da = params.target) != null ? _Da : "fills";
           if (target === "fills") {
             if (!("fillStyleId" in node))
               throw new Error("Node does not support fill styles");
@@ -1522,7 +1549,7 @@
         case "create_paint_style": {
           const style = figma.createPaintStyle();
           style.name = params.name;
-          style.paints = [{ type: "SOLID", color: params.color, opacity: (_Aa = params.opacity) != null ? _Aa : 1 }];
+          style.paints = [{ type: "SOLID", color: params.color, opacity: (_Ea = params.opacity) != null ? _Ea : 1 }];
           return { id: style.id, name: style.name };
         }
         case "create_effect_style": {
@@ -1537,7 +1564,7 @@
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
           const mode = params.mode;
-          const axis = (_Ba = params.axis) != null ? _Ba : "both";
+          const axis = (_Fa = params.axis) != null ? _Fa : "both";
           const isFrame = node.type === "FRAME";
           if (isFrame && "primaryAxisSizingMode" in node) {
             if (axis === "horizontal" || axis === "both") {
