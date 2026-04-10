@@ -56,10 +56,12 @@ curl -s -X POST http://localhost:3571/command \
 - `set_corner_radius` — corner radius (`nodeId`, `radius`)
 - `set_opacity` — opacity (`nodeId`, `opacity`)
 - `set_font` — typography (`nodeId`, `family`, `style`, `size`)
-- `set_layout` — auto-layout (`nodeId`, `mode`, `gap`, `padding`)
+- `set_layout` — auto-layout on FRAME only (`nodeId`, `mode`, `gap`, `padding`) — for components: create Frame with auto-layout first, then `create_component_from_node`
 - `set_effect` — add shadow/effect (`nodeId`, `effectType`, ...)
 
 **Variables & modes:**
+- `create_variable_collection` — создать коллекцию (`name`, `modes?: string[]`)
+- `create_variable` — создать переменную (`collectionId`, `name`, `type: COLOR|FLOAT|STRING|BOOLEAN`, `values: { modeId: value }`)
 - `update_variable` — изменить значение переменной (`variableId`, `values: { modeId: value }`)
 - `delete_variable` — удалить переменную (`variableId`)
 - `apply_variable` — привязать переменную к свойству ноды (`nodeId`, `property`, `variableId`)
