@@ -4,14 +4,21 @@ This project includes a local bridge server that lets you control Figma directly
 
 ## Connecting to Figma
 
-If the user wants to read or edit their Figma file, use the bridge:
+The bridge server runs at **http://localhost:3571**. Before any Figma operation, check its status and start it if needed:
 
-**Check connection first:**
 ```bash
-curl http://localhost:3571/status
+curl -s http://localhost:3571/status
 ```
 
-If `connected: true` — send commands. If not — ask the user to start the server (`node server/server.js`) and open the Claude Bridge plugin in Figma.
+**If the request fails (server not running)** — start it:
+```bash
+node /Users/cutpixel/Work/GIT/Claude\ Bridge/server/server.js &
+```
+Then wait 1–2 seconds and check status again.
+
+**If `connected: false`** (server up but Figma plugin not open) — ask the user to open the Claude Bridge plugin in Figma. You cannot proceed without the plugin connected.
+
+**If `connected: true`** — ready, send commands.
 
 **Send a command:**
 ```bash
