@@ -928,6 +928,105 @@ async function executeAction(action, params) {
       return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
     }
 
+    case 'apply_text_style': {
+      // params: nodeId, styleId
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (node.type !== 'TEXT') throw new Error('Node is not a text layer');
+      node.textStyleId = params.styleId;
+      return { success: true };
+    }
+
+    case 'rotate': {
+      // params: nodeId, angle (degrees, clockwise)
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('rotation' in node)) throw new Error('Node does not support rotation');
+      node.rotation = params.angle;
+      return { success: true, rotation: node.rotation };
+    }
+
+    case 'set_constraints': {
+      // params: nodeId, horizontal, vertical
+      // horizontal: 'MIN'|'MAX'|'STRETCH'|'CENTER'|'SCALE'
+      // vertical:   'MIN'|'MAX'|'STRETCH'|'CENTER'|'SCALE'
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('constraints' in node)) throw new Error('Node does not support constraints');
+      node.constraints = {
+        horizontal: params.horizontal ?? node.constraints.horizontal,
+        vertical: params.vertical ?? node.constraints.vertical,
+      };
+      return { success: true, constraints: node.constraints };
+    }
+
+    case 'get_constraints': {
+      // params: nodeId
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('constraints' in node)) throw new Error('Node does not support constraints');
+      return { nodeId: node.id, constraints: node.constraints };
+    }
+
+    case 'reset_instance': {
+      // params: nodeId — reset all overrides on a component instance
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (node.type !== 'INSTANCE') throw new Error('Node is not a component instance');
+      node.resetOverrides();
+      return { success: true };
+    }
+
+    case 'detach_instance': {
+      // params: nodeId — detach instance from its main component
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (node.type !== 'INSTANCE') throw new Error('Node is not a component instance');
+      const frame = node.detachInstance();
+      return { success: true, ...nodeInfo(frame) };
+    }
+
+    case 'export_svg': {
+      // params: nodeId
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      const bytes = await node.exportAsync({ format: 'SVG' });
+      const svg = new TextDecoder().decode(bytes);
+      return { svg };
+    }
+
+    case 'set_fills': {
+      // params: nodeId, fills — array of fill objects
+      // Each fill: { type: 'SOLID', color: {r,g,b}, opacity? }
+      //            { type: 'GRADIENT_LINEAR'|'GRADIENT_RADIAL', gradientStops: [{color:{r,g,b,a}, position}], gradientTransform? }
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('fills' in node)) throw new Error('Node does not support fills');
+      node.fills = params.fills;
+      return { success: true };
+    }
+
+    case 'add_fill': {
+      // params: nodeId, fill — appends a fill to the existing stack
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('fills' in node)) throw new Error('Node does not support fills');
+      node.fills = [...node.fills, params.fill];
+      return { success: true, fillCount: node.fills.length };
+    }
+
+    case 'remove_fill': {
+      // params: nodeId, index (default: last)
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('fills' in node)) throw new Error('Node does not support fills');
+      const fills = [...node.fills];
+      const idx = params.index ?? fills.length - 1;
+      fills.splice(idx, 1);
+      node.fills = fills;
+      return { success: true, fillCount: node.fills.length };
+    }
+
     // ── Search ────────────────────────────────────────────────────────────────
 
     case 'find_nodes': {

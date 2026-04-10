@@ -79,7 +79,7 @@
   }
   function executeAction(action, params) {
     return __async(this, null, function* () {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa, _ba, _ca, _da, _ea, _fa, _ga;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa, _ba, _ca, _da, _ea, _fa, _ga, _ha, _ia, _ja;
       switch (action) {
         case "get_selection":
           return figma.currentPage.selection.map(nodeInfo);
@@ -996,13 +996,107 @@
           ]);
           return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
         }
+        case "apply_text_style": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (node.type !== "TEXT")
+            throw new Error("Node is not a text layer");
+          node.textStyleId = params.styleId;
+          return { success: true };
+        }
+        case "rotate": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("rotation" in node))
+            throw new Error("Node does not support rotation");
+          node.rotation = params.angle;
+          return { success: true, rotation: node.rotation };
+        }
+        case "set_constraints": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("constraints" in node))
+            throw new Error("Node does not support constraints");
+          node.constraints = {
+            horizontal: (_aa = params.horizontal) != null ? _aa : node.constraints.horizontal,
+            vertical: (_ba = params.vertical) != null ? _ba : node.constraints.vertical
+          };
+          return { success: true, constraints: node.constraints };
+        }
+        case "get_constraints": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("constraints" in node))
+            throw new Error("Node does not support constraints");
+          return { nodeId: node.id, constraints: node.constraints };
+        }
+        case "reset_instance": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (node.type !== "INSTANCE")
+            throw new Error("Node is not a component instance");
+          node.resetOverrides();
+          return { success: true };
+        }
+        case "detach_instance": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (node.type !== "INSTANCE")
+            throw new Error("Node is not a component instance");
+          const frame = node.detachInstance();
+          return __spreadValues({ success: true }, nodeInfo(frame));
+        }
+        case "export_svg": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          const bytes = yield node.exportAsync({ format: "SVG" });
+          const svg = new TextDecoder().decode(bytes);
+          return { svg };
+        }
+        case "set_fills": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("fills" in node))
+            throw new Error("Node does not support fills");
+          node.fills = params.fills;
+          return { success: true };
+        }
+        case "add_fill": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("fills" in node))
+            throw new Error("Node does not support fills");
+          node.fills = [...node.fills, params.fill];
+          return { success: true, fillCount: node.fills.length };
+        }
+        case "remove_fill": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("fills" in node))
+            throw new Error("Node does not support fills");
+          const fills = [...node.fills];
+          const idx = (_ca = params.index) != null ? _ca : fills.length - 1;
+          fills.splice(idx, 1);
+          node.fills = fills;
+          return { success: true, fillCount: node.fills.length };
+        }
         case "find_nodes": {
           const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : figma.currentPage;
           if (!scopeNode)
             throw new Error(`Scope not found`);
-          const limit = (_aa = params.limit) != null ? _aa : 50;
+          const limit = (_da = params.limit) != null ? _da : 50;
           const results = [];
-          const nameLower = (_ba = params.name) == null ? void 0 : _ba.toLowerCase();
+          const nameLower = (_ea = params.name) == null ? void 0 : _ea.toLowerCase();
           const walk = (n) => {
             var _a2;
             if (results.length >= limit)
@@ -1037,7 +1131,7 @@
         }
         case "create_page": {
           const page = figma.createPage();
-          page.name = (_ca = params.name) != null ? _ca : "Page";
+          page.name = (_fa = params.name) != null ? _fa : "Page";
           if (params.index !== void 0)
             figma.root.insertChild(params.index, page);
           return { id: page.id, name: page.name };
@@ -1072,7 +1166,7 @@
           return { success: true, selected: valid.map((n) => n.id) };
         }
         case "notify": {
-          figma.notify(params.message, { error: (_da = params.error) != null ? _da : false });
+          figma.notify(params.message, { error: (_ga = params.error) != null ? _ga : false });
           return { success: true };
         }
         case "reorder": {
@@ -1161,7 +1255,7 @@
           const node = yield figma.getNodeByIdAsync(params.nodeId);
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
-          const target = (_ea = params.target) != null ? _ea : "fills";
+          const target = (_ha = params.target) != null ? _ha : "fills";
           if (target === "fills") {
             if (!("fillStyleId" in node))
               throw new Error("Node does not support fill styles");
@@ -1185,7 +1279,7 @@
         case "create_paint_style": {
           const style = figma.createPaintStyle();
           style.name = params.name;
-          style.paints = [{ type: "SOLID", color: params.color, opacity: (_fa = params.opacity) != null ? _fa : 1 }];
+          style.paints = [{ type: "SOLID", color: params.color, opacity: (_ia = params.opacity) != null ? _ia : 1 }];
           return { id: style.id, name: style.name };
         }
         case "create_effect_style": {
@@ -1200,7 +1294,7 @@
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
           const mode = params.mode;
-          const axis = (_ga = params.axis) != null ? _ga : "both";
+          const axis = (_ja = params.axis) != null ? _ja : "both";
           const isFrame = node.type === "FRAME";
           if (isFrame && "primaryAxisSizingMode" in node) {
             if (axis === "horizontal" || axis === "both") {

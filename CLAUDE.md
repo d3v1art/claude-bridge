@@ -103,13 +103,29 @@ curl -s -X POST http://localhost:3571/command \
 **Styles:**
 - `get_local_styles` — all local paint/text/effect/grid styles
 - `apply_paint_style` — apply color style (`nodeId`, `styleId`, `target?`)
+- `apply_text_style` — apply text style to text node (`nodeId`, `styleId`)
 - `apply_effect_style` — apply effect style (`nodeId`, `styleId`)
 - `create_paint_style` — create color style (`name`, `color`, `opacity?`)
 - `create_effect_style` — create effect style (`name`, `effects`)
 
-**Sizing & blend:**
+**Sizing, rotation & blend:**
 - `set_sizing` — layout sizing mode (`nodeId`, `axis`, `mode: FIXED|HUG|FILL`)
 - `set_blend_mode` — blend mode (`nodeId`, `blendMode`)
+- `rotate` — rotation in degrees (`nodeId`, `angle`)
+- `set_constraints` — layout constraints (`nodeId`, `horizontal`, `vertical`) — values: `MIN|MAX|STRETCH|CENTER|SCALE`
+- `get_constraints` — read constraints (`nodeId`)
+
+**Fills stack:**
+- `set_fills` — replace entire fills array (`nodeId`, `fills`)
+- `add_fill` — append a fill (`nodeId`, `fill`)
+- `remove_fill` — remove fill by index (`nodeId`, `index?`)
+
+**Component instances:**
+- `reset_instance` — reset all overrides (`nodeId`)
+- `detach_instance` — detach from component, returns frame (`nodeId`)
+
+**Export:**
+- `export_svg` — export node as SVG string (`nodeId`)
 
 **Creating:**
 - `create_frame` — new frame (`name`, `width`, `height`, `x`, `y`, `fill`, `cornerRadius`)
