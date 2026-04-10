@@ -129,6 +129,12 @@ curl -s -X POST http://localhost:3571/command \
 - `add_fill` — append a fill (`nodeId`, `fill`)
 - `remove_fill` — remove fill by index (`nodeId`, `index?`)
 
+**Strokes stack:**
+- `set_strokes` — replace entire strokes array (`nodeId`, `strokes`)
+- `add_stroke` — append a stroke (`nodeId`, `stroke`)
+- `remove_stroke` — remove stroke by index (`nodeId`, `index?`)
+- `set_stroke_dash` — dash pattern (`nodeId`, `dashPattern: [dash, gap, ...]`) — `[]` resets to solid
+
 **Export:**
 - `export_svg` — export node as SVG string (`nodeId`)
 

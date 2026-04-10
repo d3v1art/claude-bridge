@@ -79,7 +79,7 @@
   }
   function executeAction(action, params) {
     return __async(this, null, function* () {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa, _ba, _ca, _da, _ea, _fa, _ga, _ha, _ia, _ja, _ka, _la, _ma, _na, _oa, _pa, _qa, _ra, _sa, _ta, _ua, _va, _wa, _xa, _ya, _za, _Aa;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa, _ba, _ca, _da, _ea, _fa, _ga, _ha, _ia, _ja, _ka, _la, _ma, _na, _oa, _pa, _qa, _ra, _sa, _ta, _ua, _va, _wa, _xa, _ya, _za, _Aa, _Ba;
       switch (action) {
         case "get_selection":
           return figma.currentPage.selection.map(nodeInfo);
@@ -996,6 +996,45 @@
           ]);
           return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
         }
+        case "set_strokes": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("strokes" in node))
+            throw new Error("Node does not support strokes");
+          node.strokes = params.strokes;
+          return { success: true };
+        }
+        case "add_stroke": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("strokes" in node))
+            throw new Error("Node does not support strokes");
+          node.strokes = [...node.strokes, params.stroke];
+          return { success: true, strokeCount: node.strokes.length };
+        }
+        case "remove_stroke": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("strokes" in node))
+            throw new Error("Node does not support strokes");
+          const strokes = [...node.strokes];
+          const idx = (_aa = params.index) != null ? _aa : strokes.length - 1;
+          strokes.splice(idx, 1);
+          node.strokes = strokes;
+          return { success: true, strokeCount: node.strokes.length };
+        }
+        case "set_stroke_dash": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("dashPattern" in node))
+            throw new Error("Node does not support dash pattern");
+          node.dashPattern = params.dashPattern;
+          return { success: true, dashPattern: node.dashPattern };
+        }
         case "set_text_auto_resize": {
           const node = yield figma.getNodeByIdAsync(params.nodeId);
           if (!node)
@@ -1088,14 +1127,14 @@
             throw new Error(`Node not found: ${params.nodeId}`);
           if (node.type !== "INSTANCE")
             throw new Error("Node is not a component instance");
-          const defs = (_ba = (_aa = node.mainComponent) == null ? void 0 : _aa.componentPropertyDefinitions) != null ? _ba : {};
-          const vals = (_ca = node.componentProperties) != null ? _ca : {};
+          const defs = (_ca = (_ba = node.mainComponent) == null ? void 0 : _ba.componentPropertyDefinitions) != null ? _ca : {};
+          const vals = (_da = node.componentProperties) != null ? _da : {};
           const result = {};
           for (const [key, def] of Object.entries(defs)) {
             result[key] = __spreadValues(__spreadValues({
               type: def.type,
               defaultValue: def.defaultValue,
-              currentValue: (_ea = (_da = vals[key]) == null ? void 0 : _da.value) != null ? _ea : def.defaultValue
+              currentValue: (_fa = (_ea = vals[key]) == null ? void 0 : _ea.value) != null ? _fa : def.defaultValue
             }, def.variantOptions ? { options: def.variantOptions } : {}), def.preferredValues ? { preferredValues: def.preferredValues } : {});
           }
           return result;
@@ -1114,8 +1153,8 @@
         }
         case "create_component": {
           const comp = figma.createComponent();
-          comp.name = (_fa = params.name) != null ? _fa : "Component";
-          comp.resize((_ga = params.width) != null ? _ga : 100, (_ha = params.height) != null ? _ha : 100);
+          comp.name = (_ga = params.name) != null ? _ga : "Component";
+          comp.resize((_ha = params.width) != null ? _ha : 100, (_ia = params.height) != null ? _ia : 100);
           if (params.x !== void 0)
             comp.x = params.x;
           if (params.y !== void 0)
@@ -1129,8 +1168,8 @@
         }
         case "create_ellipse": {
           const ellipse = figma.createEllipse();
-          ellipse.name = (_ia = params.name) != null ? _ia : "Ellipse";
-          ellipse.resize((_ja = params.width) != null ? _ja : 100, (_ka = params.height) != null ? _ka : 100);
+          ellipse.name = (_ja = params.name) != null ? _ja : "Ellipse";
+          ellipse.resize((_ka = params.width) != null ? _ka : 100, (_la = params.height) != null ? _la : 100);
           if (params.x !== void 0)
             ellipse.x = params.x;
           if (params.y !== void 0)
@@ -1141,16 +1180,16 @@
               parent.appendChild(ellipse);
           }
           if (params.fill !== void 0)
-            ellipse.fills = [{ type: "SOLID", color: params.fill, opacity: (_la = params.fillOpacity) != null ? _la : 1 }];
+            ellipse.fills = [{ type: "SOLID", color: params.fill, opacity: (_ma = params.fillOpacity) != null ? _ma : 1 }];
           if (params.stroke !== void 0) {
             ellipse.strokes = [{ type: "SOLID", color: params.stroke }];
-            ellipse.strokeWeight = (_ma = params.strokeWeight) != null ? _ma : 1;
+            ellipse.strokeWeight = (_na = params.strokeWeight) != null ? _na : 1;
           }
           return __spreadValues({ success: true }, nodeInfo(ellipse));
         }
         case "create_line": {
           const line = figma.createLine();
-          line.name = (_na = params.name) != null ? _na : "Line";
+          line.name = (_oa = params.name) != null ? _oa : "Line";
           if (params.x !== void 0)
             line.x = params.x;
           if (params.y !== void 0)
@@ -1166,7 +1205,7 @@
           }
           if (params.stroke !== void 0) {
             line.strokes = [{ type: "SOLID", color: params.stroke }];
-            line.strokeWeight = (_oa = params.strokeWeight) != null ? _oa : 1;
+            line.strokeWeight = (_pa = params.strokeWeight) != null ? _pa : 1;
           }
           return __spreadValues({ success: true }, nodeInfo(line));
         }
@@ -1178,7 +1217,7 @@
             throw new Error("Node does not support fills");
           let imageHash;
           if (params.base64) {
-            const mimeType = (_pa = params.mimeType) != null ? _pa : "image/png";
+            const mimeType = (_qa = params.mimeType) != null ? _qa : "image/png";
             const byteString = atob(params.base64);
             const bytes = new Uint8Array(byteString.length);
             for (let i = 0; i < byteString.length; i++)
@@ -1196,7 +1235,7 @@
           node.fills = [{
             type: "IMAGE",
             imageHash,
-            scaleMode: (_qa = params.scaleMode) != null ? _qa : "FILL"
+            scaleMode: (_ra = params.scaleMode) != null ? _ra : "FILL"
           }];
           return { success: true };
         }
@@ -1225,8 +1264,8 @@
           if (!("constraints" in node))
             throw new Error("Node does not support constraints");
           node.constraints = {
-            horizontal: (_ra = params.horizontal) != null ? _ra : node.constraints.horizontal,
-            vertical: (_sa = params.vertical) != null ? _sa : node.constraints.vertical
+            horizontal: (_sa = params.horizontal) != null ? _sa : node.constraints.horizontal,
+            vertical: (_ta = params.vertical) != null ? _ta : node.constraints.vertical
           };
           return { success: true, constraints: node.constraints };
         }
@@ -1289,7 +1328,7 @@
           if (!("fills" in node))
             throw new Error("Node does not support fills");
           const fills = [...node.fills];
-          const idx = (_ta = params.index) != null ? _ta : fills.length - 1;
+          const idx = (_ua = params.index) != null ? _ua : fills.length - 1;
           fills.splice(idx, 1);
           node.fills = fills;
           return { success: true, fillCount: node.fills.length };
@@ -1298,9 +1337,9 @@
           const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : figma.currentPage;
           if (!scopeNode)
             throw new Error(`Scope not found`);
-          const limit = (_ua = params.limit) != null ? _ua : 50;
+          const limit = (_va = params.limit) != null ? _va : 50;
           const results = [];
-          const nameLower = (_va = params.name) == null ? void 0 : _va.toLowerCase();
+          const nameLower = (_wa = params.name) == null ? void 0 : _wa.toLowerCase();
           const walk = (n) => {
             var _a2;
             if (results.length >= limit)
@@ -1335,7 +1374,7 @@
         }
         case "create_page": {
           const page = figma.createPage();
-          page.name = (_wa = params.name) != null ? _wa : "Page";
+          page.name = (_xa = params.name) != null ? _xa : "Page";
           if (params.index !== void 0)
             figma.root.insertChild(params.index, page);
           return { id: page.id, name: page.name };
@@ -1370,7 +1409,7 @@
           return { success: true, selected: valid.map((n) => n.id) };
         }
         case "notify": {
-          figma.notify(params.message, { error: (_xa = params.error) != null ? _xa : false });
+          figma.notify(params.message, { error: (_ya = params.error) != null ? _ya : false });
           return { success: true };
         }
         case "reorder": {
@@ -1459,7 +1498,7 @@
           const node = yield figma.getNodeByIdAsync(params.nodeId);
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
-          const target = (_ya = params.target) != null ? _ya : "fills";
+          const target = (_za = params.target) != null ? _za : "fills";
           if (target === "fills") {
             if (!("fillStyleId" in node))
               throw new Error("Node does not support fill styles");
@@ -1483,7 +1522,7 @@
         case "create_paint_style": {
           const style = figma.createPaintStyle();
           style.name = params.name;
-          style.paints = [{ type: "SOLID", color: params.color, opacity: (_za = params.opacity) != null ? _za : 1 }];
+          style.paints = [{ type: "SOLID", color: params.color, opacity: (_Aa = params.opacity) != null ? _Aa : 1 }];
           return { id: style.id, name: style.name };
         }
         case "create_effect_style": {
@@ -1498,7 +1537,7 @@
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
           const mode = params.mode;
-          const axis = (_Aa = params.axis) != null ? _Aa : "both";
+          const axis = (_Ba = params.axis) != null ? _Ba : "both";
           const isFrame = node.type === "FRAME";
           if (isFrame && "primaryAxisSizingMode" in node) {
             if (axis === "horizontal" || axis === "both") {

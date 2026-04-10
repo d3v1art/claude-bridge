@@ -928,6 +928,48 @@ async function executeAction(action, params) {
       return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
     }
 
+    case 'set_strokes': {
+      // params: nodeId, strokes — full strokes array replacement
+      // Each stroke: { type: 'SOLID', color: {r,g,b}, opacity?, visible? }
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('strokes' in node)) throw new Error('Node does not support strokes');
+      node.strokes = params.strokes;
+      return { success: true };
+    }
+
+    case 'add_stroke': {
+      // params: nodeId, stroke — appends a stroke to the existing stack
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('strokes' in node)) throw new Error('Node does not support strokes');
+      node.strokes = [...node.strokes, params.stroke];
+      return { success: true, strokeCount: node.strokes.length };
+    }
+
+    case 'remove_stroke': {
+      // params: nodeId, index (default: last)
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('strokes' in node)) throw new Error('Node does not support strokes');
+      const strokes = [...node.strokes];
+      const idx = params.index ?? strokes.length - 1;
+      strokes.splice(idx, 1);
+      node.strokes = strokes;
+      return { success: true, strokeCount: node.strokes.length };
+    }
+
+    case 'set_stroke_dash': {
+      // params: nodeId, dashPattern — array of numbers [dash, gap, dash, gap...]
+      // e.g. [8, 4] — 8px dash, 4px gap
+      // Pass [] to reset to solid
+      const node = await figma.getNodeByIdAsync(params.nodeId);
+      if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+      if (!('dashPattern' in node)) throw new Error('Node does not support dash pattern');
+      node.dashPattern = params.dashPattern;
+      return { success: true, dashPattern: node.dashPattern };
+    }
+
     case 'set_text_auto_resize': {
       // params: nodeId, mode — 'NONE'|'HEIGHT'|'WIDTH_AND_HEIGHT'|'TRUNCATE'
       const node = await figma.getNodeByIdAsync(params.nodeId);
