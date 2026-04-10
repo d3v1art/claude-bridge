@@ -120,20 +120,29 @@ curl -s -X POST http://localhost:3571/command \
 - `add_fill` — append a fill (`nodeId`, `fill`)
 - `remove_fill` — remove fill by index (`nodeId`, `index?`)
 
-**Component instances:**
-- `reset_instance` — reset all overrides (`nodeId`)
-- `detach_instance` — detach from component, returns frame (`nodeId`)
-
 **Export:**
 - `export_svg` — export node as SVG string (`nodeId`)
 
+**Component instances:**
+- `get_instance_properties` — read current property values on instance (`nodeId`)
+- `set_instance_property` — set property values (`nodeId`, `properties: { key: value }`)
+- `swap_instance` — swap to different component (`nodeId`, `componentId`)
+- `reset_instance` — reset all overrides (`nodeId`)
+- `detach_instance` — detach from component (`nodeId`)
+
 **Creating:**
 - `create_frame` — new frame (`name`, `width`, `height`, `x`, `y`, `fill`, `cornerRadius`)
-- `create_rectangle` — new rectangle
-- `create_text` — new text layer (`text`, `fontSize`, `x`, `y`, `fill`)
+- `create_rectangle` — rectangle (`name`, `width`, `height`, `x`, `y`, `fill`, `stroke`)
+- `create_ellipse` — ellipse/circle (`name`, `width`, `height`, `x`, `y`, `fill`, `stroke`)
+- `create_line` — line (`name`, `x`, `y`, `length`, `rotation`, `stroke`, `strokeWeight`)
+- `create_text` — text layer (`text`, `fontSize`, `x`, `y`, `fill`)
+- `create_component` — blank component (`name`, `width`, `height`, `x`, `y`)
 - `create_instance` — instantiate component (`componentId`, `parentId`, `x`, `y`)
 - `create_component_from_node` — convert node to component (`nodeId`)
 - `duplicate` — clone node (`nodeId`, `x`, `y`)
+
+**Images:**
+- `set_image_fill` — fill node with image (`nodeId`, `url` or `base64`, `scaleMode?: FILL|FIT|CROP|TILE`)
 
 **Structure:**
 - `reparent` — move to new parent (`nodeId`, `newParentId`)

@@ -79,7 +79,7 @@
   }
   function executeAction(action, params) {
     return __async(this, null, function* () {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa, _ba, _ca, _da, _ea, _fa, _ga, _ha, _ia, _ja;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa, _ba, _ca, _da, _ea, _fa, _ga, _ha, _ia, _ja, _ka, _la, _ma, _na, _oa, _pa, _qa, _ra, _sa, _ta, _ua, _va, _wa, _xa, _ya, _za, _Aa;
       switch (action) {
         case "get_selection":
           return figma.currentPage.selection.map(nodeInfo);
@@ -996,6 +996,135 @@
           ]);
           return { missingComponents, hardcodedColors, detachedStyles, emptyFrames, contrastIssues };
         }
+        case "set_instance_property": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (node.type !== "INSTANCE")
+            throw new Error("Node is not a component instance");
+          for (const [key, value] of Object.entries(params.properties)) {
+            node.setProperties({ [key]: value });
+          }
+          return { success: true };
+        }
+        case "get_instance_properties": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (node.type !== "INSTANCE")
+            throw new Error("Node is not a component instance");
+          const defs = (_ba = (_aa = node.mainComponent) == null ? void 0 : _aa.componentPropertyDefinitions) != null ? _ba : {};
+          const vals = (_ca = node.componentProperties) != null ? _ca : {};
+          const result = {};
+          for (const [key, def] of Object.entries(defs)) {
+            result[key] = __spreadValues(__spreadValues({
+              type: def.type,
+              defaultValue: def.defaultValue,
+              currentValue: (_ea = (_da = vals[key]) == null ? void 0 : _da.value) != null ? _ea : def.defaultValue
+            }, def.variantOptions ? { options: def.variantOptions } : {}), def.preferredValues ? { preferredValues: def.preferredValues } : {});
+          }
+          return result;
+        }
+        case "swap_instance": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (node.type !== "INSTANCE")
+            throw new Error("Node is not a component instance");
+          const comp = yield figma.getNodeByIdAsync(params.componentId);
+          if (!comp || comp.type !== "COMPONENT")
+            throw new Error(`Not a component: ${params.componentId}`);
+          node.swapComponent(comp);
+          return { success: true, nodeId: node.id, newComponentId: comp.id, newComponentName: comp.name };
+        }
+        case "create_component": {
+          const comp = figma.createComponent();
+          comp.name = (_fa = params.name) != null ? _fa : "Component";
+          comp.resize((_ga = params.width) != null ? _ga : 100, (_ha = params.height) != null ? _ha : 100);
+          if (params.x !== void 0)
+            comp.x = params.x;
+          if (params.y !== void 0)
+            comp.y = params.y;
+          if (params.parentId) {
+            const parent = yield figma.getNodeByIdAsync(params.parentId);
+            if (parent && "appendChild" in parent)
+              parent.appendChild(comp);
+          }
+          return __spreadValues({ success: true }, nodeInfo(comp));
+        }
+        case "create_ellipse": {
+          const ellipse = figma.createEllipse();
+          ellipse.name = (_ia = params.name) != null ? _ia : "Ellipse";
+          ellipse.resize((_ja = params.width) != null ? _ja : 100, (_ka = params.height) != null ? _ka : 100);
+          if (params.x !== void 0)
+            ellipse.x = params.x;
+          if (params.y !== void 0)
+            ellipse.y = params.y;
+          if (params.parentId) {
+            const parent = yield figma.getNodeByIdAsync(params.parentId);
+            if (parent && "appendChild" in parent)
+              parent.appendChild(ellipse);
+          }
+          if (params.fill !== void 0)
+            ellipse.fills = [{ type: "SOLID", color: params.fill, opacity: (_la = params.fillOpacity) != null ? _la : 1 }];
+          if (params.stroke !== void 0) {
+            ellipse.strokes = [{ type: "SOLID", color: params.stroke }];
+            ellipse.strokeWeight = (_ma = params.strokeWeight) != null ? _ma : 1;
+          }
+          return __spreadValues({ success: true }, nodeInfo(ellipse));
+        }
+        case "create_line": {
+          const line = figma.createLine();
+          line.name = (_na = params.name) != null ? _na : "Line";
+          if (params.x !== void 0)
+            line.x = params.x;
+          if (params.y !== void 0)
+            line.y = params.y;
+          if (params.length !== void 0)
+            line.resize(params.length, 0);
+          if (params.rotation !== void 0)
+            line.rotation = params.rotation;
+          if (params.parentId) {
+            const parent = yield figma.getNodeByIdAsync(params.parentId);
+            if (parent && "appendChild" in parent)
+              parent.appendChild(line);
+          }
+          if (params.stroke !== void 0) {
+            line.strokes = [{ type: "SOLID", color: params.stroke }];
+            line.strokeWeight = (_oa = params.strokeWeight) != null ? _oa : 1;
+          }
+          return __spreadValues({ success: true }, nodeInfo(line));
+        }
+        case "set_image_fill": {
+          const node = yield figma.getNodeByIdAsync(params.nodeId);
+          if (!node)
+            throw new Error(`Node not found: ${params.nodeId}`);
+          if (!("fills" in node))
+            throw new Error("Node does not support fills");
+          let imageHash;
+          if (params.base64) {
+            const mimeType = (_pa = params.mimeType) != null ? _pa : "image/png";
+            const byteString = atob(params.base64);
+            const bytes = new Uint8Array(byteString.length);
+            for (let i = 0; i < byteString.length; i++)
+              bytes[i] = byteString.charCodeAt(i);
+            const image = figma.createImage(bytes);
+            imageHash = image.hash;
+          } else if (params.url) {
+            const response = yield fetch(params.url);
+            const buffer = yield response.arrayBuffer();
+            const image = figma.createImage(new Uint8Array(buffer));
+            imageHash = image.hash;
+          } else {
+            throw new Error("Provide url or base64");
+          }
+          node.fills = [{
+            type: "IMAGE",
+            imageHash,
+            scaleMode: (_qa = params.scaleMode) != null ? _qa : "FILL"
+          }];
+          return { success: true };
+        }
         case "apply_text_style": {
           const node = yield figma.getNodeByIdAsync(params.nodeId);
           if (!node)
@@ -1021,8 +1150,8 @@
           if (!("constraints" in node))
             throw new Error("Node does not support constraints");
           node.constraints = {
-            horizontal: (_aa = params.horizontal) != null ? _aa : node.constraints.horizontal,
-            vertical: (_ba = params.vertical) != null ? _ba : node.constraints.vertical
+            horizontal: (_ra = params.horizontal) != null ? _ra : node.constraints.horizontal,
+            vertical: (_sa = params.vertical) != null ? _sa : node.constraints.vertical
           };
           return { success: true, constraints: node.constraints };
         }
@@ -1085,7 +1214,7 @@
           if (!("fills" in node))
             throw new Error("Node does not support fills");
           const fills = [...node.fills];
-          const idx = (_ca = params.index) != null ? _ca : fills.length - 1;
+          const idx = (_ta = params.index) != null ? _ta : fills.length - 1;
           fills.splice(idx, 1);
           node.fills = fills;
           return { success: true, fillCount: node.fills.length };
@@ -1094,9 +1223,9 @@
           const scopeNode = params.scopeId ? yield figma.getNodeByIdAsync(params.scopeId) : figma.currentPage;
           if (!scopeNode)
             throw new Error(`Scope not found`);
-          const limit = (_da = params.limit) != null ? _da : 50;
+          const limit = (_ua = params.limit) != null ? _ua : 50;
           const results = [];
-          const nameLower = (_ea = params.name) == null ? void 0 : _ea.toLowerCase();
+          const nameLower = (_va = params.name) == null ? void 0 : _va.toLowerCase();
           const walk = (n) => {
             var _a2;
             if (results.length >= limit)
@@ -1131,7 +1260,7 @@
         }
         case "create_page": {
           const page = figma.createPage();
-          page.name = (_fa = params.name) != null ? _fa : "Page";
+          page.name = (_wa = params.name) != null ? _wa : "Page";
           if (params.index !== void 0)
             figma.root.insertChild(params.index, page);
           return { id: page.id, name: page.name };
@@ -1166,7 +1295,7 @@
           return { success: true, selected: valid.map((n) => n.id) };
         }
         case "notify": {
-          figma.notify(params.message, { error: (_ga = params.error) != null ? _ga : false });
+          figma.notify(params.message, { error: (_xa = params.error) != null ? _xa : false });
           return { success: true };
         }
         case "reorder": {
@@ -1255,7 +1384,7 @@
           const node = yield figma.getNodeByIdAsync(params.nodeId);
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
-          const target = (_ha = params.target) != null ? _ha : "fills";
+          const target = (_ya = params.target) != null ? _ya : "fills";
           if (target === "fills") {
             if (!("fillStyleId" in node))
               throw new Error("Node does not support fill styles");
@@ -1279,7 +1408,7 @@
         case "create_paint_style": {
           const style = figma.createPaintStyle();
           style.name = params.name;
-          style.paints = [{ type: "SOLID", color: params.color, opacity: (_ia = params.opacity) != null ? _ia : 1 }];
+          style.paints = [{ type: "SOLID", color: params.color, opacity: (_za = params.opacity) != null ? _za : 1 }];
           return { id: style.id, name: style.name };
         }
         case "create_effect_style": {
@@ -1294,7 +1423,7 @@
           if (!node)
             throw new Error(`Node not found: ${params.nodeId}`);
           const mode = params.mode;
-          const axis = (_ja = params.axis) != null ? _ja : "both";
+          const axis = (_Aa = params.axis) != null ? _Aa : "both";
           const isFrame = node.type === "FRAME";
           if (isFrame && "primaryAxisSizingMode" in node) {
             if (axis === "horizontal" || axis === "both") {
