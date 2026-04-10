@@ -2,6 +2,10 @@
 
 This project includes a local bridge server that lets you control Figma directly.
 
+## Important: use the bridge, not use_figma
+
+This project uses its own bridge to communicate with Figma via HTTP commands. **Do not use the `use_figma` tool** — use `curl` POST requests to `http://localhost:3571/command` instead. All Figma operations go through the bridge.
+
 ## Connecting to Figma
 
 The bridge server runs at **http://localhost:3571**. Before any Figma operation, check its status and start it if needed:
