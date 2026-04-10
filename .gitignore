@@ -11,6 +11,3 @@ dist/
 .claude/settings.local.json
 .claude/memory/
 
-# Docs/notes
-design.md
-mcp-server-guide-main/
