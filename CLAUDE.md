@@ -205,10 +205,12 @@ Think like HTML/CSS. Sizing should reflect how the element actually behaves, not
 
 When creating or editing elements, always check for existing variables first via `get_variables`.
 
-- **If no variables exist at all and the task would benefit from tokens** (e.g. building a component or screen with repeated values) — ask the user: *"No variables found. Should I create tokens or use hardcoded values?"*
+- **If no variables exist at all and the task would benefit from tokens** — ask the user: *"No variables found. Should I create tokens or use hardcoded values?"*
 - **If the user just wants a quick mockup** — hardcode everything, no need to ask
+- **If a design system exists and is still scaling** (e.g. spacing scale has gaps, new breakpoints being added) — create missing variables that logically extend the system, no need to ask
+- **If a design system is finalized** — always ask before introducing any new variable: *"This value has no matching token. Should I create one or use the closest existing variable?"* Prefer rounding to the nearest existing token over creating a new one
 
-The goal: use the design system when it exists, don't invent one unless asked.
+The goal: use the design system when it exists, don't invent one unless asked. Introducing unnecessary variables pollutes the token namespace and breaks consistency.
 
 ### Binding variables — applies to ALL nodes, not just components
 
@@ -270,6 +272,7 @@ Executes arbitrary JavaScript directly in the Figma Plugin API context. Best for
 - Follow all rules from the `figma-use` skill (loaded automatically)
 - After executing `use_figma`, switch back to bridge for follow-up edits
 - `use_figma` and bridge target the same Figma file — they are fully compatible
+- **Always return all created node IDs** — including variant IDs from `componentSet.children`. Never guess IDs after the fact; read them from the script's return value and record in `design.md` immediately
 
 ---
 
@@ -307,6 +310,7 @@ This means a complex screen with 30 nodes, 50 variable bindings, and 20 text ove
 - **`counterAxisAlignItems` does NOT accept `"STRETCH"`** — valid values: `MIN | MAX | CENTER | BASELINE`. To make children fill the counter axis, set `set_sizing` with `axis=horizontal, mode=FILL` on each child individually.
 - **`create_frame` without `fill` is now transparent** (fixed in plugin) — but always pass `fill` explicitly if a background color is intended, never rely on defaults.
 - **`set_text` does NOT work on INSTANCE nodes** — use `set_instance_property` with the full property key (e.g. `"Label#2044:0"`). Get keys via `get_instance_properties` first, or reuse keys from previous calls on the same component type.
+- **Fixed-size frames inside auto-layout must have `primaryAxisSizingMode = 'FIXED'` and `counterAxisSizingMode = 'FIXED'`** — if you create a frame with `layoutMode` set and then call `resize(w, h)`, auto-layout will still shrink it to fit content. Always set both sizing modes to `'FIXED'` before `resize()` on any frame that must hold a specific size (circles, icons, avatars).
 - **`set_layout` failures are partial** — if one property in a `set_layout` call throws (e.g. invalid `counterAlign`), properties set before the error DO apply, those after do NOT. Order the properties in `set_layout` to put safe ones first.
 
 ### Rules to enforce this
@@ -383,12 +387,56 @@ Related components (e.g. button styles, input states, card types) must be groupe
 
 The same variable binding rules from "Variables usage policy" apply to components — `cornerRadius`, `paddingTop/Bottom/Left/Right`, `itemSpacing`, `fills`, `strokes`. Bind them immediately when building the component, before converting to a component set or adding instances to the canvas.
 
+### Updating an existing component
+
+When adding variants or properties to an existing COMPONENT_SET:
+1. Read current state: `get_children` on the component set + `get_component_properties`
+2. Build the new variant frame, convert with `create_component_from_node`
+3. Use `combine_as_variants` to add it to the existing set — pass the existing set ID as parent
+4. Add new shared properties via `add_component_property` on the set if needed
+5. Existing instances on screens **inherit updates automatically** — no need to touch them unless the property keys changed
+6. Update `design.md` with new variant IDs and any changed property keys
+
+**After `combine_as_variants`**, apply Figma's default component set styling manually — the API does not add it automatically:
+1. `set.strokes = [{ type: 'SOLID', color: { r: 0.541, g: 0.220, b: 0.961 }, opacity: 1, visible: true, blendMode: 'NORMAL' }]`
+2. `set.strokeWeight = 1`, `set.strokeAlign = 'INSIDE'`
+3. Position each child variant at `x=20`, `y=20 + (prev heights + 30 gaps)` — no auto-layout on the set
+4. `set.resizeWithoutConstraints(PAD + maxChildWidth + PAD, totalHeight)`
+
+**Renaming a property** (`editComponentProperty` via `use_figma`) is safe — the internal `#ID` stays the same, instances update automatically and keep their overrides. Only the display name prefix changes.
+
+**Deleting a property** is destructive — all instance overrides for that property are permanently lost. If you need to replace a property: add the new one first, update all instances manually, then delete the old one.
+
+### Component placement
+
+All components live in a dedicated Section named `Components` on the same page as the screens. Its ID is stored in `design.md`.
+
+**Layout rules:**
+- Components are grouped by type: `Forms`, `Actions`, `Navigation`, `Icons`, etc.
+- Within a group: `40px` gap between components
+- Between groups: `80px` gap
+- Group label (Label/SM, gray/400) sits `8px` above each group's components
+- Top padding: `60px` (section header space), left/right: `40px`, bottom: `40px`
+- After adding padding/stroke to a component set, always check neighbors don't overlap — resize section after every change
+
+**When creating a new component:**
+1. Determine which group it belongs to (Forms / Actions / Navigation / Icons / …)
+2. Place it inside the correct group with `40px` gap to the previous component in that group
+3. If it's a new group, add a group label text node and `80px` gap from the previous group
+4. Resize the section: `section.resizeWithoutConstraints(newWidth, newHeight)`
+5. Record the component in `design.md`
+
+Never place components loose on the page or inside screen frames. Never use emoji in node names — use plain text only.
+
 ### After creating a component or style
 
 Update `.figma-projects/{fileKey}/design.md` immediately:
 - **New component / component set** — add its ID and all property keys (from `add_component_property` responses)
+- **New variant** — add variant ID read from `componentSet.children`, never guessed
 - **New text style** — add its name and style ID
 - **New effect style** — add its name and style ID
+
+**Always verify IDs before writing to design.md.** Never guess or infer node IDs — read them from the API response or via `get_children`. Guessed IDs will silently point to the wrong node.
 
 ## Per-project design notes
 
@@ -413,10 +461,25 @@ Folder is git-ignored (private). Bound to the Figma **file key** (not project na
 - Only document decisions made by the designer, not current Figma state (positions and IDs are read live)
 - Variable collection IDs are worth keeping — they don't change and save a `get_variables` parse
 
+## Screen variants (tablet / mobile)
+
+When creating a tablet or mobile variant of an existing screen:
+1. Read the desktop screen structure (`get_tree`) — don't rebuild from memory
+2. Adapt layout: adjust panel widths, font sizes, spacing to fit the new viewport
+3. Reuse the same component instances — don't recreate components
+4. Place the new screen to the right of the previous one (see screen map in `design.md`)
+5. Update the screen map in `design.md` with the new screen's ID and position
+
+## Accessibility
+
+Run `audit_contrast` only when explicitly requested — not automatically after creating screens. Use `scopeId` (not `nodeId`) to scope the check.
+
 ## Typical workflow
 
-1. `get_selection` or `get_page_nodes` — understand what's on the canvas
-2. `find_nodes` — locate specific elements by name, text, or type
-3. `get_tree` — inspect structure of a specific node if needed
-4. Make targeted edits with specific actions
-5. Use `batch` for multiple changes at once
+1. **Read `design.md`** for the active Figma project before any Figma operation
+2. `get_selection` or `get_page_nodes` — understand what's on the canvas
+3. `find_nodes` — locate specific elements by name, text, or type
+4. `get_tree` — inspect structure of a specific node if needed
+5. Make targeted edits with specific actions
+6. Use `batch` for multiple changes at once
+7. **`scroll_to_node`** — always scroll to the result at the end so the user sees it
