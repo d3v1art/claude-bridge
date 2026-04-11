@@ -462,14 +462,55 @@ Folder is git-ignored (private). Bound to the Figma **file key** (not project na
 - Only document decisions made by the designer, not current Figma state (positions and IDs are read live)
 - Variable collection IDs are worth keeping — they don't change and save a `get_variables` parse
 
-## Screen variants (tablet / mobile)
+## Screen layout on the canvas
 
-When creating a tablet or mobile variant of an existing screen:
+### Rule #1 — detect the existing pattern first
+
+Before placing any new screen, call `get_page_nodes` and analyse what's already there:
+- **Naming** — what convention is used? (`Auth / Desktop`, `Onboarding/Step 1`, `dashboard-mobile`, etc.)
+- **Axis** — are screens arranged horizontally (varying x, same y) or in rows (varying both)?
+- **Gaps** — measure the space between existing frames (x2 - x1 - width1)
+- **Grouping** — are there Figma Sections? Are viewport variants side-by-side or stacked?
+
+**Match that pattern exactly.** Do not impose a new layout scheme on a file that already has one.
+
+### Rule #2 — default layout for new projects (no pattern yet)
+
+When the canvas is empty or has only one screen, use this structure:
+
+```
+Row per flow, flows stacked vertically:
+
+  ┌─────────────────────────────────────────────┐  ← Figma Section "Auth"
+  │ [Desktop 1440]  [Mobile 390]  [Tablet 1024] │
+  └─────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────┐  ← Figma Section "Register"
+  │ [Desktop 1440]  [Mobile 390]  [Tablet 1024] │
+  └─────────────────────────────────────────────┘
+```
+
+- Gap between screens within a row: **200px**
+- Gap between rows (flows): **400px**
+- All screens in a row share the same **y = 0** (top-aligned)
+- Naming: `Flow / Viewport` — e.g. `Auth / Desktop`, `Auth / Mobile`
+
+### Rule #3 — adding a screen to an existing file
+
+1. `get_page_nodes` — read current positions and names
+2. Identify which row (flow) the new screen belongs to
+3. Place it at `x = rightmost_screen_in_that_row + width + gap`, same `y` as that row
+4. Match the existing naming convention — do not invent a new one
+5. Update `design.md` screen map with the new position
+
+### Rule #4 — viewport variants
+
+When adding a mobile/tablet variant of an existing desktop screen:
 1. Read the desktop screen structure (`get_tree`) — don't rebuild from memory
 2. Adapt layout: adjust panel widths, font sizes, spacing to fit the new viewport
 3. Reuse the same component instances — don't recreate components
-4. Place the new screen to the right of the previous one (see screen map in `design.md`)
-5. Update the screen map in `design.md` with the new screen's ID and position
+4. Place it to the right of the desktop screen in the same row (same y)
+5. Update `design.md` screen map
 
 ## Accessibility
 
