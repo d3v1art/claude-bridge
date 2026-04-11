@@ -312,6 +312,7 @@ This means a complex screen with 30 nodes, 50 variable bindings, and 20 text ove
 - **`set_text` does NOT work on INSTANCE nodes** — use `set_instance_property` with the full property key (e.g. `"Label#2044:0"`). Get keys via `get_instance_properties` first, or reuse keys from previous calls on the same component type.
 - **Fixed-size frames inside auto-layout must have `primaryAxisSizingMode = 'FIXED'` and `counterAxisSizingMode = 'FIXED'`** — if you create a frame with `layoutMode` set and then call `resize(w, h)`, auto-layout will still shrink it to fit content. Always set both sizing modes to `'FIXED'` before `resize()` on any frame that must hold a specific size (circles, icons, avatars).
 - **`set_layout` failures are partial** — if one property in a `set_layout` call throws (e.g. invalid `counterAlign`), properties set before the error DO apply, those after do NOT. Order the properties in `set_layout` to put safe ones first.
+- **`findAll` / `page.findAll` is RECURSIVE** — it traverses the entire subtree, including children of children (components, frames, nested groups). Never use `container.findAll(n => n.type === 'TEXT').forEach(t => t.remove())` on a container that holds components — it will delete text nodes inside those components too. To remove only direct text children of a frame, use `frame.children.filter(n => n.type === 'TEXT').forEach(t => t.remove())`.
 
 ### Rules to enforce this
 
