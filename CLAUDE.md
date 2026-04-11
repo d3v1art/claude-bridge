@@ -312,6 +312,24 @@ This means a complex screen with 30 nodes, 50 variable bindings, and 20 text ove
 - **`set_text` does NOT work on INSTANCE nodes** — use `set_instance_property` with the full property key (e.g. `"Label#2044:0"`). Get keys via `get_instance_properties` first, or reuse keys from previous calls on the same component type.
 - **Fixed-size frames inside auto-layout must have `primaryAxisSizingMode = 'FIXED'` and `counterAxisSizingMode = 'FIXED'`** — if you create a frame with `layoutMode` set and then call `resize(w, h)`, auto-layout will still shrink it to fit content. Always set both sizing modes to `'FIXED'` before `resize()` on any frame that must hold a specific size (circles, icons, avatars).
 - **`set_layout` failures are partial** — if one property in a `set_layout` call throws (e.g. invalid `counterAlign`), properties set before the error DO apply, those after do NOT. Order the properties in `set_layout` to put safe ones first.
+- **Coordinates of nodes inside Figma Sections are RELATIVE to the section**, not absolute page coordinates. After appending frames to a section, always call `sectionResizeToFit(section, 100)` (see snippet below) — it computes the bounding box of all children, repositions them to `(pad, pad)`, adjusts the section origin to preserve absolute canvas positions, and resizes the section. This matches Figma's native "Resize to fit" behaviour with 100px padding.
+
+```js
+// use_figma snippet — reuse whenever creating or updating a section
+function sectionResizeToFit(section, pad) {
+  const children = section.children;
+  if (!children.length) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const c of children) {
+    minX = Math.min(minX, c.x);         minY = Math.min(minY, c.y);
+    maxX = Math.max(maxX, c.x + c.width); maxY = Math.max(maxY, c.y + c.height);
+  }
+  const dx = pad - minX, dy = pad - minY;
+  for (const c of children) { c.x += dx; c.y += dy; }
+  section.x -= dx; section.y -= dy;
+  section.resizeWithoutConstraints((maxX - minX) + pad * 2, (maxY - minY) + pad * 2);
+}
+```
 - **`findAll` / `page.findAll` is RECURSIVE** — it traverses the entire subtree, including children of children (components, frames, nested groups). Never use `container.findAll(n => n.type === 'TEXT').forEach(t => t.remove())` on a container that holds components — it will delete text nodes inside those components too. To remove only direct text children of a frame, use `frame.children.filter(n => n.type === 'TEXT').forEach(t => t.remove())`.
 
 ### Rules to enforce this
